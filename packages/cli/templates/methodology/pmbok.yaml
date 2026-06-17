@@ -1,0 +1,29 @@
+id: pmbok
+name: PMBOK
+nameFr: PMBOK (Gestion de Projet)
+agentIds:
+  - architecte-solution
+  - expert-securite
+  - qa-strategist
+  - tech-lead
+workflowIds:
+  - charte-projet
+  - wbs
+  - analyse-risques
+  - matrice-raci
+  - rapport-avancement
+vocabulary:
+  en:
+    iteration: phase
+    deliverable: deliverable
+    planning: project planning
+    review: project review
+    team_meeting: status meeting
+    task_unit: work package
+  fr:
+    iteration: phase
+    deliverable: livrable
+    planning: planification de projet
+    review: revue de projet
+    team_meeting: réunion de suivi
+    task_unit: lot de travail

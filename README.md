@@ -38,13 +38,19 @@ Quatre differenciateurs principaux :
 **Prerequis :** Node.js >= 20, npm >= 9
 
 ```bash
-npm install -g methode-kuate
-```
+# Cloner le depot
+git clone https://github.com/kuatejoelparfait-Data/methode-kuate.git
+cd methode-kuate
 
-Ou sans installation :
+# Installer les dependances et compiler
+npm install
+npm run build
 
-```bash
-npx methode-kuate init
+# Rendre la commande kuate disponible globalement
+npm link --workspace=packages/cli
+
+# Verifier l'installation
+kuate --version
 ```
 
 ---

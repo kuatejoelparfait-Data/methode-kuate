@@ -1,0 +1,27 @@
+id: okr
+name: OKR
+nameFr: OKR
+agentIds:
+  - stratege-okr
+  - chef-projet
+  - business-analyst
+workflowIds:
+  - okr-definition
+  - weekly-checkin
+  - quarterly-review
+  - okr-retrospective
+vocabulary:
+  en:
+    iteration: quarter
+    deliverable: key result
+    planning: OKR planning
+    review: quarterly review
+    team_meeting: weekly check-in
+    task_unit: confidence score
+  fr:
+    iteration: trimestre
+    deliverable: résultat clé
+    planning: planification OKR
+    review: revue trimestrielle
+    team_meeting: check-in hebdomadaire
+    task_unit: score de confiance

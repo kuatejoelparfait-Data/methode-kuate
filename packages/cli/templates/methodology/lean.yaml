@@ -1,0 +1,27 @@
+id: lean
+name: Lean
+nameFr: Lean
+agentIds:
+  - architecte-solution
+  - dev-senior
+  - expert-performance
+  - qa-strategist
+workflowIds:
+  - value-stream-mapping
+  - kaizen
+  - 5s-digital
+vocabulary:
+  en:
+    iteration: cycle
+    deliverable: value increment
+    planning: value stream planning
+    review: improvement review
+    team_meeting: kaizen meeting
+    task_unit: value unit
+  fr:
+    iteration: cycle
+    deliverable: incrément de valeur
+    planning: planification de flux
+    review: revue d'amélioration
+    team_meeting: réunion kaizen
+    task_unit: unité de valeur

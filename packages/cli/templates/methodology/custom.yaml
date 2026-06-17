@@ -1,0 +1,28 @@
+id: custom
+name: Custom
+nameFr: Personnalisé
+agentIds:
+  - architecte-solution
+  - dev-senior
+  - chef-projet
+  - business-analyst
+workflowIds:
+  - discovery-interview
+  - requirements-gathering
+  - system-design
+  - feature-implementation
+vocabulary:
+  en:
+    iteration: cycle
+    deliverable: deliverable
+    planning: planning session
+    review: review meeting
+    team_meeting: team meeting
+    task_unit: task
+  fr:
+    iteration: cycle
+    deliverable: livrable
+    planning: session de planification
+    review: réunion de revue
+    team_meeting: réunion d'équipe
+    task_unit: tâche

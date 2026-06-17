@@ -6,7 +6,7 @@ import { initI18n, t } from '../i18n/index.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const TEMPLATES_DIR = path.resolve(__dirname, '..', '..', '..', '..', 'templates')
+const TEMPLATES_DIR = path.resolve(__dirname, '..', 'templates')
 
 const PHASE_COLORS: Record<string, (s: string) => string> = {
   K: chalk.hex('#3b5bdb'),

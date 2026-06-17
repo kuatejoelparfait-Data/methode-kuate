@@ -14,29 +14,33 @@
   },
   "keywords": ["kuate", "ai-agents", "methodology", "cli", "agile", "pmbok", "lean"],
   "author": "KUATE JOEL PARFAIT <joelparfait237@gmail.com> (https://www.linkedin.com/in/joelparfaitkuate/)",
-  "license": "SEE LICENSE IN LICENSE",
-  "homepage": "https://github.com/JoelKuate/methode-kuate",
+  "license": "CC-BY-NC-ND-4.0",
+  "homepage": "https://github.com/kuatejoelparfait-Data/methode-kuate",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JoelKuate/methode-kuate.git"
+    "url": "https://github.com/kuatejoelparfait-Data/methode-kuate.git"
   },
-  "files": ["dist", "src"],
+  "files": ["dist", "templates"],
   "dependencies": {
-    "@methode-kuate/core": "*",
-    "@methode-kuate/agents-dev": "*",
-    "@methode-kuate/agents-business": "*",
-    "@methode-kuate/agents-content": "*",
-    "@methode-kuate/agents-education": "*",
     "@clack/prompts": "^0.7.0",
     "commander": "^12.0.0",
     "chalk": "^5.3.0",
     "ora": "^8.0.0",
     "clipboardy": "^4.0.0",
     "update-notifier": "^7.0.0",
-    "fs-extra": "^11.0.0"
+    "fs-extra": "^11.0.0",
+    "handlebars": "^4.7.8",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@methode-kuate/core": "*",
+    "@methode-kuate/agents-dev": "*",
+    "@methode-kuate/agents-business": "*",
+    "@methode-kuate/agents-content": "*",
+    "@methode-kuate/agents-education": "*",
     "@types/update-notifier": "^6.0.0",
-    "@types/fs-extra": "^11.0.0"
+    "@types/fs-extra": "^11.0.0",
+    "@types/js-yaml": "^4.0.9"
   }
 }

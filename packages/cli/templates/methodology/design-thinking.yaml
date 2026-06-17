@@ -1,0 +1,28 @@
+id: design-thinking
+name: Design Thinking
+nameFr: Design Thinking
+agentIds:
+  - architecte-solution
+  - dev-senior
+  - qa-strategist
+workflowIds:
+  - empathise
+  - define
+  - ideate
+  - prototype
+  - test-utilisateur
+vocabulary:
+  en:
+    iteration: design cycle
+    deliverable: prototype
+    planning: ideation session
+    review: user testing
+    team_meeting: design sprint
+    task_unit: design artifact
+  fr:
+    iteration: cycle de design
+    deliverable: prototype
+    planning: session d'idéation
+    review: test utilisateur
+    team_meeting: design sprint
+    task_unit: artefact de design

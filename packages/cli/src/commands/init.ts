@@ -10,14 +10,24 @@ import {
   generateAndSaveAgent,
 } from '@methode-kuate/core'
 import { AGENTS_DEV } from '@methode-kuate/agents-dev'
+import { AGENTS_BUSINESS } from '@methode-kuate/agents-business'
+import { AGENTS_CONTENT } from '@methode-kuate/agents-content'
+import { AGENTS_EDUCATION } from '@methode-kuate/agents-education'
 import type { KuateConfig, Lang, MethodologyId, DomainId } from '@methode-kuate/core'
 import { initI18n, t } from '../i18n/index.js'
 import { detectSystemLang } from '../utils/lang.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const TEMPLATES_DIR = path.resolve(__dirname, '..', '..', '..', '..', 'templates')
-const AGENTS_TEMPLATES_DIR = path.resolve(__dirname, '..', '..', '..', 'agents-dev', 'templates')
+const TEMPLATES_DIR = path.resolve(__dirname, '..', 'templates')
+const AGENTS_TEMPLATES_BASE = path.resolve(__dirname, '..', 'templates', 'agents')
+
+const DOMAIN_TEMPLATES: Record<DomainId, string> = {
+  dev: path.join(AGENTS_TEMPLATES_BASE, 'dev'),
+  business: path.join(AGENTS_TEMPLATES_BASE, 'business'),
+  content: path.join(AGENTS_TEMPLATES_BASE, 'content'),
+  education: path.join(AGENTS_TEMPLATES_BASE, 'education'),
+}
 
 const VERSION = '1.0.0'
 
@@ -85,7 +95,7 @@ export async function initCommand(cwd: string): Promise<void> {
     methodology = await loadMethodology('agile', TEMPLATES_DIR)
   }
 
-  const allAgents = [...AGENTS_DEV]
+  const allAgents = [...AGENTS_DEV, ...AGENTS_BUSINESS, ...AGENTS_CONTENT, ...AGENTS_EDUCATION]
   const selectedAgents = filterAgentsForMethodology(allAgents, methodology, domains as DomainId[])
 
   const config: KuateConfig = {
@@ -101,11 +111,12 @@ export async function initCommand(cwd: string): Promise<void> {
 
   const outputDir = path.join(cwd, '.kuate', 'agents')
   for (const agent of selectedAgents) {
+    const templatesDir = DOMAIN_TEMPLATES[agent.domain as DomainId] ?? DOMAIN_TEMPLATES.dev
     await generateAndSaveAgent({
       agent,
       config,
       methodology,
-      templatesDir: AGENTS_TEMPLATES_DIR,
+      templatesDir,
       outputDir,
     })
   }

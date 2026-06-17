@@ -1,0 +1,31 @@
+id: agile
+name: Agile/Scrum
+nameFr: Agile/Scrum
+agentIds:
+  - architecte-solution
+  - dev-senior
+  - expert-devops
+  - expert-securite
+  - qa-strategist
+  - tech-lead
+workflowIds:
+  - sprint-planning
+  - backlog-grooming
+  - retrospective
+  - sprint-review
+  - definition-of-done
+vocabulary:
+  en:
+    iteration: sprint
+    deliverable: user story
+    planning: sprint planning
+    review: sprint review
+    team_meeting: daily standup
+    task_unit: story point
+  fr:
+    iteration: sprint
+    deliverable: user story
+    planning: planification de sprint
+    review: revue de sprint
+    team_meeting: mêlée quotidienne
+    task_unit: point de story

@@ -1,0 +1,28 @@
+id: safe
+name: SAFe
+nameFr: SAFe
+agentIds:
+  - architecte-solution
+  - tech-lead
+  - coach-agile
+  - chef-projet
+workflowIds:
+  - pi-planning
+  - art-sync
+  - solution-demo
+  - inspect-and-adapt
+vocabulary:
+  en:
+    iteration: PI (Program Increment)
+    deliverable: feature
+    planning: PI planning
+    review: solution demo
+    team_meeting: ART sync
+    task_unit: story point
+  fr:
+    iteration: PI (Incrément de Programme)
+    deliverable: feature
+    planning: PI planning
+    review: solution demo
+    team_meeting: synchronisation ART
+    task_unit: point de story

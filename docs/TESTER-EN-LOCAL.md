@@ -1,7 +1,7 @@
-# Tester la Methode KUATE en local avant publication npm
+# Installer et utiliser la Methode KUATE depuis GitHub
 
 **Auteur : KUATE JOEL PARFAIT**  
-**Objectif : valider que tout fonctionne avant `npm publish`**
+**Objectif : installer la CLI localement depuis le depot GitHub**
 
 ---
 
