@@ -3,7 +3,7 @@
 **CLI d'orchestration d'agents IA pour equipes structurees**
 
 Auteur : KUATE JOEL PARFAIT — [LinkedIn](https://www.linkedin.com/in/joelparfaitkuate/)  
-Licence : Usage personnel non commercial  
+Licence : CC BY-NC-ND 4.0 — Usage personnel, partage autorise, modifications et usage commercial interdits  
 Version : 1.0.0
 
 ---
@@ -12,7 +12,7 @@ Version : 1.0.0
 
 Methode KUATE est un framework CLI open-source qui installe dans n'importe quel projet une methodologie structuree, des agents IA specialises et une memoire persistante. Il permet a Claude, ChatGPT, Gemini et Cursor de se comporter comme de veritables experts methodologiques.
 
-KUATE surpasse BMAD Method sur quatre axes :
+Quatre differenciateurs principaux :
 
 1. **Acronyme structurant** — 5 phases (K·U·A·T·E) forment la colonne vertebrale de toute la methode
 2. **Moteur de methodologie** — les agents s'adaptent automatiquement a Agile, Lean, PMBOK, OKR, SAFe
@@ -80,9 +80,6 @@ kuate memory inject
 Lance le wizard interactif pour initialiser la Methode KUATE dans le projet courant.
 
 ```
-Options detectees automatiquement :
-  - Langue du systeme (FR/EN)
-
 Wizard interactif :
   - Nom du projet
   - Langue de travail (fr | en)
@@ -120,10 +117,10 @@ kuate workflow show sprint-planning    # Fiche d'un workflow
 ### `kuate memory`
 
 ```bash
-kuate memory show                      # Vue d'ensemble de la memoire
-kuate memory show --section architecture
-kuate memory add --section constraints # Ajouter une entree
-kuate memory inject                    # Generer un bloc contexte pour session IA
+kuate memory show                          # Vue d'ensemble de la memoire
+kuate memory show --section architecture   # Une section specifique
+kuate memory add --section constraints     # Ajouter une entree
+kuate memory inject                        # Generer un bloc contexte pour session IA
 ```
 
 Sections disponibles : `memory`, `architecture`, `business`, `constraints`, `glossary`
@@ -276,23 +273,6 @@ methode-kuate/
 
 ---
 
-## Comparaison BMAD vs KUATE
-
-| Fonctionnalite | BMAD Method | Methode KUATE |
-|---|---|---|
-| Acronyme structurant | Non | Oui — 5 phases K.U.A.T.E |
-| Methodologies formelles | Non | Oui — Agile, Lean, PMBOK, SAFe, OKR |
-| Memoire persistante | Non | Oui — .kuate/context/ injectable |
-| Multilinguisme | Non (EN uniquement) | Oui — FR/EN natif |
-| Nombre d'agents | 12+ | 23 sur 4 domaines |
-| Nombre de workflows | 34+ | 27 par phase KUATE |
-| Mode multi-agents | Basique | Oui — kuate conseil |
-| Export plateformes | Web bundles | Claude, ChatGPT, Gemini, Cursor, Copilot |
-| Systeme de plugins | Non | Contrat plugin.yaml prevu V1.5 |
-| Domaines couverts | Dev uniquement | Dev, Business, Contenu, Formation |
-
----
-
 ## Stack technique
 
 - **Runtime** : Node.js 20+, TypeScript 5, ESM
@@ -303,17 +283,11 @@ methode-kuate/
 
 ---
 
-## Contribuer
-
-Les contributions sont bienvenues. Pour ajouter une nouvelle langue, un nouvel agent ou une nouvelle methodologie, consultez le guide de contribution dans `docs/`.
-
----
-
 ## Licence
 
-Usage personnel non commercial — KUATE JOEL PARFAIT, 2026
+Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)
 
-Toute utilisation commerciale est interdite sans autorisation ecrite de l'auteur.  
-Contact et demandes : [linkedin.com/in/joelparfaitkuate](https://www.linkedin.com/in/joelparfaitkuate/)
+Copyright (c) 2026 KUATE JOEL PARFAIT  
+[linkedin.com/in/joelparfaitkuate](https://www.linkedin.com/in/joelparfaitkuate/)
 
 Voir le fichier [LICENSE](./LICENSE) pour les termes complets.
