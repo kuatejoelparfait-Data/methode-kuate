@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "postinstall": "npm run build && npm link --workspace=packages/cli",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages/*/src/**/*.ts",
