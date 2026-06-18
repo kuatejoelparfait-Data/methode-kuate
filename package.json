@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w packages/core && npm run build -w packages/agents-dev -w packages/agents-business -w packages/agents-content -w packages/agents-education && npm run build -w packages/cli",
     "postinstall": "npm run build && npm link --workspace=packages/cli",
     "test": "vitest run",
     "test:watch": "vitest",
