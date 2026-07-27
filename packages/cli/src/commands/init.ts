@@ -133,7 +133,6 @@ function pixelBanner(): void {
       if (li < LETTERS.length - 1) line += SEP
     }
     console.log(line)
-    console.log(line)
   }
   console.log()
   console.log('  ' + chalk.bold.white("CLI d'orchestration d'agents IA  ·  v" + VERSION))
