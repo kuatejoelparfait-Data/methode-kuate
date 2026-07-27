@@ -155,8 +155,6 @@ function pixelBanner(): void {
   console.log()
   console.log(bdr('╔', '╗'))
   console.log(empty)
-  console.log(cl(welcomeRaw, welcomeStyled))
-  console.log(empty)
 
   for (let row = 0; row < 5; row++) {
     let content = ''
@@ -172,7 +170,7 @@ function pixelBanner(): void {
 
   console.log(empty)
   console.log(bdr('╠', '╣'))
-  console.log(ll(v1raw, grad(v1raw, true)))
+  console.log(ll(v1raw, chalk.bold.white(v1raw)))
   console.log(ll(a1raw, chalk.hex('#FF8C00')(a1raw)))
   console.log(bdr('╠', '╣'))
   console.log(ll(d1, chalk.white(d1)))
