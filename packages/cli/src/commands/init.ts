@@ -92,7 +92,7 @@ function banner(): void {
   console.log(empty)
   console.log(sep)
   console.log(empty)
-  console.log(boxLine('K·onnaître  U·nifier  A·rchitecturer  T·ransformer  E·valuer', inner))
+  console.log(boxLine('K·nower  U·nifier  A·rchitect  T·ransformer  E·valuator', inner))
   console.log(empty)
   console.log(bottom + '\n')
 }

@@ -20,11 +20,11 @@ const FR: Record<string, string> = {
   'agent.notFound': 'Agent "{{name}}" introuvable. Tapez kuate agent list pour voir les agents disponibles.',
   'config.show.header': 'CONFIGURATION KUATE',
   'error.notKuateProject': 'Aucun projet KUATE trouvé. Lancez kuate init d\'abord.',
-  'phase.K': 'Konnaître',
-  'phase.U': 'Unifier',
-  'phase.A': 'Architecturer',
-  'phase.T': 'Transformer',
-  'phase.E': 'Évaluer',
+  'phase.K': 'Knower — Découvrir & Contextualiser',
+  'phase.U': 'Unifier — Agréger & Synthétiser',
+  'phase.A': 'Architect — Concevoir & Structurer',
+  'phase.T': 'Transformer — Exécuter & Restructurer',
+  'phase.E': 'Evaluator — Évaluer & Valider',
 }
 
 const EN: Record<string, string> = {
@@ -47,11 +47,11 @@ const EN: Record<string, string> = {
   'agent.notFound': 'Agent "{{name}}" not found. Run kuate agent list to see available agents.',
   'config.show.header': 'KUATE CONFIGURATION',
   'error.notKuateProject': 'No KUATE project found. Run kuate init first.',
-  'phase.K': 'Know',
-  'phase.U': 'Unify',
-  'phase.A': 'Architect',
-  'phase.T': 'Transform',
-  'phase.E': 'Evaluate',
+  'phase.K': 'Knower — Discover & Contextualize',
+  'phase.U': 'Unifier — Aggregate & Synthesize',
+  'phase.A': 'Architect — Design & Structure',
+  'phase.T': 'Transformer — Execute & Restructure',
+  'phase.E': 'Evaluator — Evaluate & Validate',
 }
 
 let currentLang: Lang = 'fr'

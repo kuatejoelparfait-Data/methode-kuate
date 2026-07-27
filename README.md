@@ -23,13 +23,13 @@ Quatre differenciateurs principaux :
 
 ## Les 5 phases KUATE
 
-| Phase | Nom | Description |
-|-------|-----|-------------|
-| K | Connaitre | Discovery — comprendre le probleme, le domaine, les utilisateurs |
-| U | Unifier | Planning — unifier les exigences en une vision coherente |
-| A | Architecturer | Design — concevoir la solution technique |
-| T | Transformer | Build — transformer le design en code fonctionnel |
-| E | Evaluer | Deliver — tester, deployer, mesurer, iterer |
+| Phase | Role | FR | EN |
+|-------|------|----|-----|
+| K | Knower | Découvrir & Contextualiser | Discover & Contextualize |
+| U | Unifier | Agréger & Synthétiser | Aggregate & Synthesize |
+| A | Architect | Concevoir & Structurer | Design & Structure |
+| T | Transformer | Exécuter & Restructurer | Execute & Restructure |
+| E | Evaluator | Évaluer & Valider | Evaluate & Validate |
 
 ---
 

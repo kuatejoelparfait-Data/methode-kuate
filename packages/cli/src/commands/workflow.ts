@@ -17,19 +17,19 @@ const PHASE_COLORS: Record<string, (s: string) => string> = {
 }
 
 const PHASE_NAMES_FR: Record<string, string> = {
-  K: 'Konnaître',
-  U: 'Unifier',
-  A: 'Architecturer',
-  T: 'Transformer',
-  E: 'Évaluer',
+  K: 'Knower — Découvrir & Contextualiser',
+  U: 'Unifier — Agréger & Synthétiser',
+  A: 'Architect — Concevoir & Structurer',
+  T: 'Transformer — Exécuter & Restructurer',
+  E: 'Evaluator — Évaluer & Valider',
 }
 
 const PHASE_NAMES_EN: Record<string, string> = {
-  K: 'Know',
-  U: 'Unify',
-  A: 'Architect',
-  T: 'Transform',
-  E: 'Evaluate',
+  K: 'Knower — Discover & Contextualize',
+  U: 'Unifier — Aggregate & Synthesize',
+  A: 'Architect — Design & Structure',
+  T: 'Transformer — Execute & Restructure',
+  E: 'Evaluator — Evaluate & Validate',
 }
 
 // Workflow catalog — phase-aware, no YAML file required per workflow for MVP
