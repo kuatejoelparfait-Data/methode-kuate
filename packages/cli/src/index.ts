@@ -10,7 +10,7 @@ import { buildCommand } from './commands/build.js'
 import { doctorCommand } from './commands/doctor.js'
 import { conseilCommand } from './commands/conseil.js'
 
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 const cwd = process.cwd()
 
 initI18n(detectSystemLang())
