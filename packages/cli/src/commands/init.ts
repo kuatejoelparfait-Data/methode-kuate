@@ -106,6 +106,39 @@ function stepLabel(current: number, total: number): string {
   return dots + '  ' + chalk.dim(`${current}/${total}`)
 }
 
+const PIXEL_FONT: Record<string, number[][]> = {
+  K: [[1,0,0,0,1],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],
+  U: [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+  A: [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+  T: [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  E: [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
+}
+
+const PIXEL_ROW_COLORS = ['#FFB300', '#FF8C00', '#E06000', '#C04800', '#8B3500']
+
+function pixelBanner(): void {
+  const LETTERS = ['K', 'U', 'A', 'T', 'E']
+  const FILLED = '██'
+  const EMPTY  = '  '
+  const SEP    = '   '
+
+  console.log()
+  console.log('  ' + chalk.hex('#FFB300').dim('Welcome to') + '  ' + grad('KUATE méthode', true))
+  console.log()
+  for (let row = 0; row < 5; row++) {
+    let line = '  '
+    for (let li = 0; li < LETTERS.length; li++) {
+      const grid = PIXEL_FONT[LETTERS[li]]
+      for (let col = 0; col < 5; col++) {
+        line += grid[row][col] ? chalk.hex(PIXEL_ROW_COLORS[row])(FILLED) : EMPTY
+      }
+      if (li < LETTERS.length - 1) line += SEP
+    }
+    console.log(line)
+  }
+  console.log()
+}
+
 export async function initCommand(cwd: string): Promise<void> {
   const detectedLang = detectSystemLang()
   initI18n(detectedLang)
@@ -279,6 +312,8 @@ export async function initCommand(cwd: string): Promise<void> {
   }
 
   spin.stop(chalk.green(`${selectedAgents.length} agents générés`))
+
+  pixelBanner()
 
   // ─── Résumé final ─────────────────────────────────────────────────────────
   const line = grad('─'.repeat(52))
