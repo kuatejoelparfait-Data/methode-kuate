@@ -117,31 +117,68 @@ const PIXEL_FONT: Record<string, number[][]> = {
 const PIXEL_ROW_COLORS = ['#FFB300', '#FF8C00', '#E06000', '#C04800', '#8B3500']
 
 function pixelBanner(): void {
+  const W   = 72
+  const INN = W - 2
   const LETTERS = ['K', 'U', 'A', 'T', 'E']
-  const FILLED = '██'
-  const EMPTY  = '  '
-  const SEP    = '   '
+  const FILLED  = '██'
+  const EMPTY   = '  '
+  const SEP     = '   '
+
+  const bdr = (l: string, r: string) =>
+    chalk.hex(ORANGE)(l) + grad('═'.repeat(INN)) + chalk.hex(BROWN)(r)
+  const empty = chalk.hex(ORANGE)('║') + ' '.repeat(INN) + chalk.hex(BROWN)('║')
+
+  const ll = (raw: string, styled: string) => {
+    const rpad = Math.max(0, INN - 2 - [...raw].length)
+    return chalk.hex(ORANGE)('║') + '  ' + styled + ' '.repeat(rpad) + chalk.hex(BROWN)('║')
+  }
+  const cl = (raw: string, styled: string) => {
+    const lpad = Math.max(0, Math.floor((INN - [...raw].length) / 2))
+    const rpad = Math.max(0, INN - lpad - [...raw].length)
+    return chalk.hex(ORANGE)('║') + ' '.repeat(lpad) + styled + ' '.repeat(rpad) + chalk.hex(BROWN)('║')
+  }
+
+  // pixel art centering
+  const PCONTENT = 5 * 2 * LETTERS.length + SEP.length * (LETTERS.length - 1)
+  const PLP = Math.floor((INN - PCONTENT) / 2)
+  const PRP = INN - PLP - PCONTENT
+
+  const welcomeRaw = 'Welcome to  KUATE méthode'
+  const welcomeStyled = chalk.hex('#FFB300')('Welcome to  ') + grad('KUATE méthode', true)
+
+  const v1raw = "CLI d'orchestration d'agents IA  ·  v" + VERSION
+  const a1raw = 'Kuate Joel Parfait  ·  linkedin.com/in/joelparfaitkuate'
+  const d1    = "Orchestration d'Agents IA qui dote tout projet d'une"
+  const d2    = "méthodologie structurée, d'agents IA spécialisés et"
+  const d3    = "d'une mémoire persistante."
 
   console.log()
-  console.log('  ' + chalk.hex('#FFB300').dim('Welcome to') + '  ' + grad('KUATE méthode', true))
-  console.log()
+  console.log(bdr('╔', '╗'))
+  console.log(empty)
+  console.log(cl(welcomeRaw, welcomeStyled))
+  console.log(empty)
+
   for (let row = 0; row < 5; row++) {
-    let line = '  '
+    let content = ''
     for (let li = 0; li < LETTERS.length; li++) {
       const grid = PIXEL_FONT[LETTERS[li]]
       for (let col = 0; col < 5; col++) {
-        line += grid[row][col] ? chalk.hex(PIXEL_ROW_COLORS[row])(FILLED) : EMPTY
+        content += grid[row][col] ? chalk.hex(PIXEL_ROW_COLORS[row])(FILLED) : EMPTY
       }
-      if (li < LETTERS.length - 1) line += SEP
+      if (li < LETTERS.length - 1) content += SEP
     }
-    console.log(line)
+    console.log(chalk.hex(ORANGE)('║') + ' '.repeat(PLP) + content + ' '.repeat(PRP) + chalk.hex(BROWN)('║'))
   }
-  console.log()
-  console.log('  ' + grad('CLI d\'orchestration d\'agents IA', true) + chalk.dim('  ·  v' + VERSION))
-  console.log('  ' + chalk.dim('Auteur : ') + chalk.hex('#FF8C00')('Kuate Joel Parfait') + chalk.dim('  ·  linkedin.com/in/joelparfaitkuate'))
-  console.log()
-  console.log('  ' + chalk.white('Orchestration d\'Agents IA qui dote tout projet d\'une méthodologie'))
-  console.log('  ' + chalk.white('structurée, d\'agents IA spécialisés et d\'une mémoire persistante.'))
+
+  console.log(empty)
+  console.log(bdr('╠', '╣'))
+  console.log(ll(v1raw, grad(v1raw, true)))
+  console.log(ll(a1raw, chalk.hex('#FF8C00')(a1raw)))
+  console.log(bdr('╠', '╣'))
+  console.log(ll(d1, chalk.white(d1)))
+  console.log(ll(d2, chalk.white(d2)))
+  console.log(ll(d3, chalk.dim(d3)))
+  console.log(bdr('╚', '╝'))
   console.log()
 }
 
