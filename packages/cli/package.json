@@ -1,6 +1,6 @@
 {
   "name": "methode-kuate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Méthode KUATE — CLI d'orchestration d'agents IA",
   "type": "module",
   "bin": {

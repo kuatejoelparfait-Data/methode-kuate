@@ -29,7 +29,7 @@ const DOMAIN_TEMPLATES: Record<DomainId, string> = {
   education: path.join(AGENTS_TEMPLATES_BASE, 'education'),
 }
 
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 const BACK = '__BACK__'
 const ORANGE = '#F97316'
 const BROWN  = '#7C2D12'
