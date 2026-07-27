@@ -146,6 +146,7 @@ export async function initCommand(cwd: string): Promise<void> {
   const detectedLang = detectSystemLang()
   initI18n(detectedLang)
 
+  pixelBanner()
   banner()
 
   if (isKuateProject(cwd)) {
@@ -315,8 +316,6 @@ export async function initCommand(cwd: string): Promise<void> {
   }
 
   spin.stop(chalk.green(`${selectedAgents.length} agents générés`))
-
-  pixelBanner()
 
   // ─── Résumé final ─────────────────────────────────────────────────────────
   const line = grad('─'.repeat(52))
