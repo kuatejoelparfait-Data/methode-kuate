@@ -137,6 +137,9 @@ function pixelBanner(): void {
     console.log(line)
   }
   console.log()
+  console.log('  ' + grad('CLI d\'orchestration d\'agents IA', true) + chalk.dim('  ·  v' + VERSION))
+  console.log('  ' + chalk.dim('Auteur : ') + chalk.hex('#FF8C00')('Kuate Joel Parfait') + chalk.dim('  ·  linkedin.com/in/joelparfaitkuate'))
+  console.log()
 }
 
 export async function initCommand(cwd: string): Promise<void> {
