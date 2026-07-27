@@ -141,8 +141,10 @@ function pixelBanner(): void {
     { letter: 'T', role: 'Transformer',  desc: 'Exécuter & Restructurer',    color: PIXEL_ROW_COLORS[3] },
     { letter: 'E', role: 'Evaluator',    desc: 'Évaluer & Valider',          color: PIXEL_ROW_COLORS[4] },
   ]
-  const pixelSep = '  ' + grad('░░▒▒' + '█'.repeat(38) + '▒▒░░')
+  const pixelSep = '  ' + grad('░░▒▒' + '█'.repeat(54) + '▒▒░░')
 
+  console.log()
+  console.log()
   console.log(pixelSep)
   for (const { letter, role, desc, color } of PHASE_DATA) {
     console.log(
