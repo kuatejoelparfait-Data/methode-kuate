@@ -146,6 +146,7 @@ function pixelBanner(): void {
   console.log()
   console.log()
   console.log(pixelSep)
+  console.log()
   for (const { letter, role, desc, color } of PHASE_DATA) {
     console.log(
       '  ' +
@@ -156,6 +157,7 @@ function pixelBanner(): void {
       chalk.white(desc)
     )
   }
+  console.log()
   console.log(pixelSep)
   console.log()
   console.log('  ' + chalk.bold.white("CLI d'orchestration d'agents IA  ·  v" + VERSION))
