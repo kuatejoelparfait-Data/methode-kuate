@@ -174,10 +174,6 @@ function pixelBanner(): void {
   console.log(bdr('╠', '╣'))
   console.log(ll(v1raw, grad(v1raw, true)))
   console.log(ll(a1raw, chalk.hex('#FF8C00')(a1raw)))
-  console.log(bdr('╠', '╣'))
-  console.log(ll(d1, chalk.white(d1)))
-  console.log(ll(d2, chalk.white(d2)))
-  console.log(ll(d3, chalk.dim(d3)))
   console.log(bdr('╚', '╝'))
   console.log()
 }
