@@ -140,6 +140,9 @@ function pixelBanner(): void {
   console.log('  ' + grad('CLI d\'orchestration d\'agents IA', true) + chalk.dim('  ·  v' + VERSION))
   console.log('  ' + chalk.dim('Auteur : ') + chalk.hex('#FF8C00')('Kuate Joel Parfait') + chalk.dim('  ·  linkedin.com/in/joelparfaitkuate'))
   console.log()
+  console.log('  ' + chalk.white('Orchestration d\'Agents IA qui dote tout projet d\'une méthodologie'))
+  console.log('  ' + chalk.white('structurée, d\'agents IA spécialisés et d\'une mémoire persistante.'))
+  console.log()
 }
 
 export async function initCommand(cwd: string): Promise<void> {
