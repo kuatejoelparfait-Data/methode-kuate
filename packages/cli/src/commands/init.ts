@@ -147,7 +147,6 @@ export async function initCommand(cwd: string): Promise<void> {
   initI18n(detectedLang)
 
   pixelBanner()
-  banner()
 
   if (isKuateProject(cwd)) {
     p.log.warn('Un projet KUATE existe déjà dans ce dossier.')
