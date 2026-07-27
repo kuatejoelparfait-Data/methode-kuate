@@ -134,6 +134,27 @@ function pixelBanner(): void {
     }
     console.log(line)
   }
+  const PHASE_DATA = [
+    { letter: 'K', role: 'Knower',       desc: 'Découvrir & Contextualiser', color: PIXEL_ROW_COLORS[0] },
+    { letter: 'U', role: 'Unifier',      desc: 'Agréger & Synthétiser',      color: PIXEL_ROW_COLORS[1] },
+    { letter: 'A', role: 'Architect',    desc: 'Concevoir & Structurer',     color: PIXEL_ROW_COLORS[2] },
+    { letter: 'T', role: 'Transformer',  desc: 'Exécuter & Restructurer',    color: PIXEL_ROW_COLORS[3] },
+    { letter: 'E', role: 'Evaluator',    desc: 'Évaluer & Valider',          color: PIXEL_ROW_COLORS[4] },
+  ]
+  const pixelSep = '  ' + grad('░░▒▒' + '█'.repeat(38) + '▒▒░░')
+
+  console.log(pixelSep)
+  for (const { letter, role, desc, color } of PHASE_DATA) {
+    console.log(
+      '  ' +
+      chalk.bold.hex(color)(`[ ${letter} ]`) +
+      '  ' +
+      chalk.hex(color)(role.padEnd(12)) +
+      chalk.dim(' ·  ') +
+      chalk.white(desc)
+    )
+  }
+  console.log(pixelSep)
   console.log()
   console.log('  ' + chalk.bold.white("CLI d'orchestration d'agents IA  ·  v" + VERSION))
   console.log('  ' + chalk.hex('#FF8C00')('Kuate Joel Parfait') + chalk.dim('  ·  linkedin.com/in/joelparfaitkuate'))
