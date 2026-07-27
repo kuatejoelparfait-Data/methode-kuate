@@ -4,7 +4,7 @@
 
 Auteur : KUATE JOEL PARFAIT — [LinkedIn](https://www.linkedin.com/in/joelparfaitkuate/)  
 Licence : CC BY-NC-ND 4.0 — Usage personnel, partage autorise, modifications et usage commercial interdits  
-Version : 1.1.0
+Version : 1.2.0
 
 ---
 
