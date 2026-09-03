@@ -6,7 +6,8 @@ Auteur : KUATE JOEL PARFAIT — [LinkedIn](https://www.linkedin.com/in/joelparfa
 Licence : CC BY-NC-ND 4.0 — Usage personnel, partage autorise, modifications et usage commercial interdits  
 Version : 1.3.0
 
-**→ [Voir le scénario complet : LexiFlow SaaS de A à Z](docs/SCENARIO.md)**
+**→ [Tutoriel complet — toutes les commandes](docs/TUTORIEL.md)**  
+**→ [Scenario concret : LexiFlow SaaS de A a Z](docs/SCENARIO.md)**
 
 ---
 
@@ -57,24 +58,32 @@ kuate init        # lancer le wizard
 ## Demarrage rapide
 
 ```bash
-# 1. Initialiser (wizard 5 étapes — inclut config IA)
+# 1. Initialiser (wizard 6 étapes — description projet + selection IA des agents)
 kuate init
 
-# 2. Lancer une session guidée par phase
-kuate phase K    # Knower — analyse et découverte
-kuate phase A    # Architect — conception technique
-kuate phase T    # Transformer — génération de code
+# 2. Partagez KUATE.md avec Claude pour contextualiser votre projet
+#    (généré automatiquement à l'init avec les agents, leurs rôles et phases)
 
-# 3. Exécuter un agent directement sur une tâche
-kuate run --agent dev-senior --task "créer le système d'authentification"
+# 3. Lancer une session guidée par phase
+kuate phase K    # Knower     — analyse, user stories, contextualisation
+kuate phase U    # Unifier    — backlog, planification sprint
+kuate phase A    # Architect  — architecture, sécurité, schémas
+kuate phase T    # Transformer — génération de code dans le projet
+kuate phase E    # Evaluator  — tests, QA, documentation
 
-# 4. Session multi-experts sur un sujet
+# 4. Exécuter un agent directement sur une tâche précise
+kuate run --agent dev-senior --task "créer le système d'authentification avec Clerk"
+
+# 5. Session multi-experts sur une question
 kuate conseil --agents "architecte-solution,expert-securite" --topic "..." --save
 
-# 5. Injecter la mémoire dans une session IA externe
+# 6. Remplir la mémoire du projet (wizard guidé)
+kuate memory seed
+
+# 7. Injecter le contexte dans une session IA externe
 kuate memory inject
 
-# 6. Exporter pour votre outil IA préféré
+# 8. Exporter pour votre outil IA préféré
 kuate build --target claude
 ```
 
@@ -84,20 +93,37 @@ kuate build --target claude
 
 ### `kuate init`
 
-Lance le wizard interactif pour initialiser la Methode KUATE dans le projet courant.
+Lance le wizard interactif (6 etapes) pour initialiser la Methode KUATE dans le projet courant.
 
 ```
-Wizard interactif :
-  - Nom du projet
-  - Langue de travail (fr | en)
-  - Methodologie (agile | lean | pmbok | design-thinking | okr | safe | custom)
-  - Domaines d'agents (dev | business | content | education)
+Etape 1 : Nom du projet
+Etape 2 : Langue de travail (fr | en)
+Etape 3 : Methodologie (agile | lean | pmbok | design-thinking | okr | safe | custom)
+Etape 4 : Description du projet (texte libre)
+Etape 5 : Configuration IA — provider + cle + modele (optionnel)
+Etape 6 : Selection des agents
+          - ✨ IA intelligente — analyse la description ou un fichier CDC
+          - Manuel — selection par domaine
 ```
 
-Genere dans `.kuate/` :
-- `config.yaml` — configuration du projet
-- `agents/*.md` — prompts des agents selectionnes
-- `context/*.md` — fichiers de memoire persistante
+Genere dans le projet :
+- `.kuate/config.yaml` — configuration du projet
+- `.kuate/agents/*.md` — prompts des agents selectionnes
+- `.kuate/context/*.md` — fichiers de memoire persistante (5 sections)
+- `KUATE.md` — contexte maitre avec tous les agents, leurs roles et phases
+
+---
+
+### `KUATE.md` — Contexte maitre du projet
+
+Genere automatiquement par `kuate init`. Contient :
+
+- Description du projet
+- Agents groupes par phase KUATE (K/U/A/T/E) avec leurs roles
+- Workflow bash recommande
+- Instructions pour Claude
+
+**Usage :** Partagez `KUATE.md` en premier message dans Claude, ChatGPT ou Gemini. L'IA comprend immediatement la structure de votre projet et le role de chaque agent.
 
 ---
 

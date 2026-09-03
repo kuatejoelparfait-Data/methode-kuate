@@ -23,53 +23,93 @@ cd ~/projets/lexiflow
 kuate init
 ```
 
-**Le wizard demande :**
+**Le wizard (6 étapes) :**
 
 ```
-◆─○─○─○─○  1/5   Nom du projet ?
+◆─○─○─○─○─○  1/6   Nom du projet ?
 > LexiFlow
 
-●─◆─○─○─○  2/5   Langue de travail ?
+●─◆─○─○─○─○  2/6   Langue de travail ?
 > Français
 
-●─●─◆─○─○  3/5   Méthodologie ?
+●─●─◆─○─○─○  3/6   Méthodologie ?
 > Agile / Scrum   (sprints, backlog, vélocité)
 
-●─●─●─◆─○  4/5   Domaines d'agents à installer ?
-> Dev + Business + Contenu   (19 agents)
+  📋 Description du projet
+  Cette description servira à sélectionner les agents pertinents
+  et à générer le fichier KUATE.md du projet.
 
-💡 Génération IA du contexte projet
-   Stockée dans ~/.kuate/global.json (non versionnée)
+●─●─●─◆─○─○  4/6   Décris le projet en quelques phrases :
+> Plateforme SaaS B2B de gestion de contrats juridiques pour PME.
+  Stack Next.js 14 + PostgreSQL. Hébergement France, RGPD strict.
+  Signature électronique, workflow de validation, intégration CRM.
 
-●─●─●─●─◆  5/5   Configurer un provider IA maintenant ?
+  💡 Provider IA — clé stockée dans ~/.kuate/global.json (non versionnée)
+
+●─●─●─●─◆─○  5/6   Configurer un provider IA ?
 > Oui
    Provider : Claude (Anthropic)
-   Clé API : **********************
+   Clé API : ****************************
    Modèle  : claude-haiku-4-5-20251001
 
-✓ 19 agents générés
+  ✓ IA configurée
+
+●─●─●─●─●─◆  6/6   Comment sélectionner les agents ?
+> ✨ Décrire le projet    (description pré-remplie depuis l'étape 4)
+
+  Analyse IA du projet et sélection des agents...
+
+  ✓ 14 agents sélectionnés par l'IA
+
+  Raisonnement IA : Ce projet SaaS juridique nécessite une équipe solide
+  en architecture backend (RGPD), sécurité, gestion de projet Agile,
+  analyse métier juridique et documentation technique...
+
+  Agents sélectionnés :
+    ◆ business-analyst          [K] business
+    ◆ expert-finance-tech       [K] business
+    ◆ chef-projet               [U] business
+    ◆ coach-agile               [U] business
+    ◆ architecte-solution       [A] dev
+    ◆ expert-securite           [A] dev
+    ◆ dev-senior                [T] dev
+    ◆ tech-lead                 [T] dev
+    ◆ expert-devops             [T] dev
+    ◆ expert-ia-ml              [T] dev
+    ◆ qa-strategist             [E] dev
+    ◆ expert-performance        [E] dev
+    ◆ copywriter-technique      [E] content
+    ◆ expert-seo                [E] content
+
+  Valider cette sélection ?
+  > Oui — utiliser ces agents
+
+✓ 14 agents générés
 ✓ Contexte IA généré — 5 fichiers enrichis
+✓ KUATE.md généré — contexte maître du projet
 ```
 
-**Résultat dans `.kuate/` :**
+**Résultat dans le projet :**
 
 ```
 .kuate/
 ├── config.yaml
-├── agents/
+├── agents/                    ← 14 agents sélectionnés par l'IA
 │   ├── architecte-solution.md
 │   ├── dev-senior.md
 │   ├── expert-securite.md
 │   ├── business-analyst.md
 │   ├── chef-projet.md
 │   ├── copywriter-technique.md
-│   └── ... (13 autres)
+│   └── ... (8 autres)
 └── context/
-    ├── architecture.md   ← généré par IA avec stack Next.js + contraintes RGPD
-    ├── business.md       ← objectif SaaS B2B, contexte PME juridique
-    ├── constraints.md    ← RGPD, hébergement EU, budget 600€/mois
-    ├── glossary.md       ← Contrat, Clause, Avenant, Signataire...
-    └── memory.md         ← Décision initiale : Agile choisi pour itérations rapides
+    ├── architecture.md    ← IA : stack Next.js + contraintes RGPD
+    ├── business.md        ← IA : objectif SaaS B2B, contexte PME juridique
+    ├── constraints.md     ← IA : RGPD, hébergement EU, budget 600€/mois
+    ├── glossary.md        ← IA : Contrat, Clause, Avenant, Signataire...
+    └── memory.md          ← IA : Décision initiale Agile
+
+KUATE.md                   ← Contexte maître — partagez avec Claude
 ```
 
 ---
