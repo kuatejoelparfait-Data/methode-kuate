@@ -7,9 +7,8 @@ export function filterAgentsForMethodology(
   methodology: MethodologyDefinition,
   domains: DomainId[]
 ): AgentDefinition[] {
-  return agents.filter(
-    (agent) =>
-      domains.includes(agent.domain) &&
-      methodology.agentIds.includes(agent.id)
-  )
+  // La méthodologie dicte les workflows et le vocabulaire, PAS les agents.
+  // Les agents sont déterminés uniquement par les domaines choisis par l'utilisateur.
+  // methodology.agentIds reste disponible pour des suggestions futures (ex: agents recommandés).
+  return agents.filter((agent) => domains.includes(agent.domain))
 }

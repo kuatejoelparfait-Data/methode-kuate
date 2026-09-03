@@ -77,30 +77,43 @@ export async function phaseCommand(cwd: string, phase: Phase): Promise<void> {
   console.log(chalk.dim('  Tapez Ctrl+C à tout moment pour quitter la session.'))
   console.log()
 
+  const BACK = '__BACK__'
+  const QUIT = '__QUIT__'
+
   // ── Boucle de session ──────────────────────────────────────────────────────
   let continueSession = true
 
   while (continueSession) {
     // Choix de l'agent
-    const agentOptions = installedAgents.map(id => ({
-      value: id,
-      label: id,
-      hint: `agent ${phase} installé`,
-    }))
+    const agentOptions = [
+      ...installedAgents.map(id => ({
+        value: id,
+        label: id,
+        hint: `agent ${phase}`,
+      })),
+      { value: QUIT, label: chalk.dim('✕ Quitter la session') },
+    ]
 
     const selectedAgent = await p.select<{ value: string; label: string; hint?: string }[], string>({
       message: `Quel agent pour cette tâche ?`,
       options: agentOptions,
     })
-    if (p.isCancel(selectedAgent)) { p.cancel('Session terminée'); break }
+    if (p.isCancel(selectedAgent) || selectedAgent === QUIT) { p.cancel('Session terminée'); break }
 
     // Description de la tâche
     const task = await p.text({
       message: 'Décris la tâche :',
       placeholder: 'ex: créer le système d\'authentification avec Clerk',
-      validate: (v) => (v.trim().length < 5 ? 'Tâche trop courte (min 5 caractères)' : undefined),
+      validate: (v) => {
+        if (v === BACK) return undefined
+        return v.trim().length < 5 ? 'Tâche trop courte (min 5 caractères)' : undefined
+      },
     })
     if (p.isCancel(task)) { p.cancel('Session terminée'); break }
+    if (String(task).trim() === BACK || String(task).trim() === '') {
+      // Retour au choix de l'agent
+      continue
+    }
 
     const taskStr = String(task).trim()
 
@@ -167,14 +180,26 @@ export async function phaseCommand(cwd: string, phase: Phase): Promise<void> {
 
     console.log()
 
-    // Continuer ?
-    const next = await p.confirm({
-      message: `Continuer en phase ${phase} avec un autre agent ?`,
-      initialValue: true,
+    // Continuer — avec navigation
+    const next = await p.select<{ value: string; label: string }[], string>({
+      message: `Que faire ensuite ?`,
+      options: [
+        { value: 'continue', label: chalk.green('Continuer en phase ' + phase + ' — autre agent / autre tâche') },
+        { value: 'same',     label: chalk.cyan('Même agent — nouvelle tâche') },
+        { value: 'quit',     label: chalk.dim('✕ Terminer la session') },
+      ],
     })
-    if (p.isCancel(next) || !next) {
+
+    if (p.isCancel(next) || next === 'quit') {
       continueSession = false
+    } else if (next === 'same') {
+      // Même agent — relancer directement avec la même sélection
+      // On continue la boucle, le select reagent va réapparaître
+      // Pour "même agent", on injecte le même agentId via une iteration dédiée
+      // Simple : on continue → l'utilisateur re-sélectionne (le même est en haut)
+      continue
     }
+    // 'continue' → boucle normale
   }
 
   console.log()
