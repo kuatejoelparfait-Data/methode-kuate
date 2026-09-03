@@ -58,6 +58,9 @@ kuate init        # lancer le wizard
 ## Demarrage rapide
 
 ```bash
+# 0. Laisser l'IA guider la session — suggère l'agent + la tâche selon l'état du projet
+kuate next
+
 # 1. Initialiser (wizard 6 étapes — description projet + selection IA des agents)
 kuate init
 
@@ -90,6 +93,32 @@ kuate build --target claude
 ---
 
 ## Commandes
+
+### `kuate next` ⭐ Point d'entrée recommandé
+
+L'assistant guidé. Analyse l'etat du projet et propose des actions concretes avec l'agent et la tache pre-remplis.
+
+```bash
+kuate next
+```
+
+```
+  🧠 MonSaaS · Claude (Anthropic) / claude-haiku-4-5-20251001
+
+  Quelle action lancer ?
+  ❯ [K] business-analyst      Rédiger les user stories du module facturation
+    [A] architecte-solution   Concevoir le schéma Prisma : users, invoices, clients
+    [T] dev-senior            Créer le composant InvoiceCard avec shadcn/ui
+    [A] expert-securite       Audit RGPD du formulaire de collecte données
+    [U] chef-projet           Découper le MVP en 4 sprints de 2 semaines
+    ✏  Décrire une autre tâche manuellement
+    ✕  Quitter
+```
+
+Choisissez → l'agent s'execute, les fichiers sont sauvegardes, la memoire est mise a jour.
+Apres chaque tache : nouvelles suggestions basees sur ce qui vient d'etre fait.
+
+---
 
 ### `kuate init`
 

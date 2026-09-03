@@ -279,6 +279,84 @@ async function callJsonOpenAI(prompt: string, model: string, apiKey: string): Pr
   return JSON.parse(data.choices[0]?.message?.content ?? '{}')
 }
 
+// ── Next suggestions — what to do next in the project ────────────────────────
+
+export interface NextSuggestion {
+  agentId: string
+  task: string
+  phase: string
+  reason: string
+}
+
+function buildNextSuggestionsPrompt(
+  projectContext: string,
+  agents: AgentSelectionInput[],
+  recentMemory: string,
+  lang: string,
+): string {
+  const langInstruction = lang === 'fr' ? 'Réponds en français.' : 'Reply in English.'
+  const agentList = agents.map(a =>
+    `- ${a.id} [phase:${a.phase}, domaine:${a.domain}]: ${a.description}`
+  ).join('\n')
+
+  return `Tu es un coach expert en gestion de projet et développement logiciel.
+${langInstruction}
+
+## Contexte du projet
+${projectContext}
+
+## Dernières actions (mémoire)
+${recentMemory || '*(aucune action enregistrée)*'}
+
+## Agents disponibles dans ce projet
+${agentList}
+
+## Ta mission
+
+Analyse l'état actuel du projet et propose entre 5 et 7 prochaines actions concrètes.
+Chaque action = 1 agent + 1 tâche précise et actionnable immédiatement.
+Varie les phases KUATE (K, U, A, T, E) selon la progression logique du projet.
+Les tâches doivent être spécifiques au projet décrit, pas génériques.
+Priorise ce qui débloque le plus de valeur maintenant.
+
+Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
+{
+  "suggestions": [
+    {
+      "agentId": "id-exact-de-l-agent",
+      "task": "description précise de la tâche à faire",
+      "phase": "K|U|A|T|E",
+      "reason": "pourquoi cette tâche maintenant (1 phrase)"
+    }
+  ]
+}`
+}
+
+export async function generateNextSuggestions(
+  projectContext: string,
+  agents: AgentSelectionInput[],
+  recentMemory: string,
+  aiConfig: AiConfig,
+  lang = 'fr',
+): Promise<NextSuggestion[]> {
+  const apiKey = aiConfig.provider === 'anthropic'
+    ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
+    : (aiConfig.openaiKey ?? process.env.OPENAI_API_KEY ?? '')
+
+  if (!apiKey) throw new Error(`Clé API manquante pour ${aiConfig.provider}`)
+
+  const prompt = buildNextSuggestionsPrompt(projectContext, agents, recentMemory, lang)
+
+  const raw = aiConfig.provider === 'anthropic'
+    ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
+    : await callJsonOpenAI(prompt, aiConfig.model, apiKey)
+
+  const result = raw as { suggestions?: NextSuggestion[] }
+  const validIds = new Set(agents.map(a => a.id))
+
+  return (result.suggestions ?? []).filter(s => validIds.has(s.agentId))
+}
+
 export async function analyzeAndSelectAgents(
   projectDescription: string,
   agents: AgentSelectionInput[],

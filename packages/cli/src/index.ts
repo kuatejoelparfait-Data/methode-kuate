@@ -11,6 +11,7 @@ import { doctorCommand } from './commands/doctor.js'
 import { conseilCommand } from './commands/conseil.js'
 import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
+import { nextCommand } from './commands/next.js'
 
 const VERSION = '1.3.0'
 const cwd = process.cwd()
@@ -135,5 +136,10 @@ program
     }
     phaseCommand(cwd, p as 'K' | 'U' | 'A' | 'T' | 'E')
   })
+
+program
+  .command('next')
+  .description("Suggestions IA de la prochaine action à faire dans le projet")
+  .action(() => nextCommand(cwd))
 
 program.parse(process.argv)
