@@ -7,6 +7,8 @@ export type AiProvider = 'anthropic' | 'openai'
 export interface AiConfig {
   provider: AiProvider
   model: string
+  anthropicKey?: string
+  openaiKey?: string
 }
 
 export interface ProjectContext {
@@ -37,11 +39,24 @@ export async function readGlobalAiConfig(): Promise<AiConfig | null> {
   try {
     const raw = await fs.readFile(GLOBAL_CONFIG_PATH, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<AiConfig>
-    if (parsed.provider && parsed.model) return parsed as AiConfig
-    return null
+    if (!parsed.provider || !parsed.model) return null
+    // Inject stored key into env if not already set
+    if (parsed.anthropicKey && !process.env.ANTHROPIC_API_KEY) {
+      process.env.ANTHROPIC_API_KEY = parsed.anthropicKey
+    }
+    if (parsed.openaiKey && !process.env.OPENAI_API_KEY) {
+      process.env.OPENAI_API_KEY = parsed.openaiKey
+    }
+    return parsed as AiConfig
   } catch {
     return null
   }
+}
+
+export function getEffectiveApiKey(provider: AiProvider): string | null {
+  if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY ?? null
+  if (provider === 'openai') return process.env.OPENAI_API_KEY ?? null
+  return null
 }
 
 export async function writeGlobalAiConfig(config: AiConfig): Promise<void> {

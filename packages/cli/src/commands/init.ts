@@ -10,10 +10,14 @@ import {
   filterAgentsForMethodology,
   generateAndSaveAgent,
   readGlobalAiConfig,
+  writeGlobalAiConfig,
   detectAvailableProvider,
   generateContextWithAI,
+  getEffectiveApiKey,
   PROVIDER_LABELS,
+  DEFAULT_MODELS,
 } from '@methode-kuate/core'
+import type { AiProvider, AiConfig } from '@methode-kuate/core'
 import { AGENTS_DEV } from '@methode-kuate/agents-dev'
 import { AGENTS_BUSINESS } from '@methode-kuate/agents-business'
 import { AGENTS_CONTENT } from '@methode-kuate/agents-content'
@@ -183,13 +187,14 @@ export async function initCommand(cwd: string): Promise<void> {
     return
   }
 
-  const TOTAL_STEPS = 4
+  const TOTAL_STEPS = 5
 
   // État du wizard — on garde les valeurs pour permettre le retour
   let projectName = ''
   let lang: Lang = detectedLang
   let method: MethodologyId = 'agile'
   let domains: DomainId[] = ['dev']
+  let pendingAiConfig: AiConfig | null = null
 
   let step = 1
 
@@ -278,6 +283,102 @@ export async function initCommand(cwd: string): Promise<void> {
       step = 5
       continue
     }
+
+    // ── Étape 5 : Configuration IA (optionnelle) ──────────────────────────
+    if (step === 5) {
+      // Charger config existante si disponible
+      const existingAi = await readGlobalAiConfig()
+      const existingProvider = detectAvailableProvider()
+
+      console.log()
+      p.log.message(
+        chalk.bold.hex('#FF8C00')('  💡 Génération IA du contexte projet\n') +
+        chalk.dim('  Une clé API enrichit automatiquement architecture.md, business.md,\n') +
+        chalk.dim('  constraints.md, glossary.md et memory.md avec du contenu intelligent.\n') +
+        chalk.dim('  Votre clé est stockée dans ') + chalk.cyan('~/.kuate/global.json') + chalk.dim(' (local, non versionnée).')
+      )
+      console.log()
+
+      const configureAi = await p.confirm({
+        message: `${stepLabel(5, TOTAL_STEPS)} Configurer un provider IA maintenant ?`,
+        initialValue: !!(existingAi && existingProvider),
+      })
+      if (p.isCancel(configureAi)) { p.cancel('Annulé'); process.exit(0) }
+
+      if (!configureAi) {
+        pendingAiConfig = existingAi  // réutilise config existante si dispo
+        step = 6
+        continue
+      }
+
+      // Choix provider
+      const provider = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: 'Provider IA ?',
+        initialValue: existingAi?.provider ?? existingProvider ?? 'anthropic',
+        options: [
+          { value: 'anthropic', label: 'Claude (Anthropic)', hint: 'Recommandé — claude-haiku rapide et économique' },
+          { value: 'openai',    label: 'GPT (OpenAI)',        hint: 'gpt-4o-mini recommandé' },
+        ],
+      })
+      if (p.isCancel(provider)) { p.cancel('Annulé'); process.exit(0) }
+
+      // Clé API
+      const keyName = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+      const existingKey = getEffectiveApiKey(provider as AiProvider)
+      let apiKey = existingKey ?? ''
+
+      if (!existingKey) {
+        const keyRes = await p.password({
+          message: `Clé API ${keyName} ?`,
+          validate: (v) => {
+            if (!v.trim()) return 'La clé ne peut pas être vide'
+            if (provider === 'anthropic' && !v.startsWith('sk-ant-')) return 'Clé Anthropic invalide (doit commencer par sk-ant-)'
+            if (provider === 'openai' && !v.startsWith('sk-')) return 'Clé OpenAI invalide (doit commencer par sk-)'
+            return undefined
+          },
+        })
+        if (p.isCancel(keyRes)) { p.cancel('Annulé'); process.exit(0) }
+        apiKey = String(keyRes).trim()
+      } else {
+        p.log.success(`Clé ${keyName} déjà détectée ✓`)
+      }
+
+      // Choix modèle
+      const models = DEFAULT_MODELS[provider as AiProvider]
+      const model = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: 'Modèle ?',
+        initialValue: existingAi?.provider === provider ? existingAi.model : models[0],
+        options: [
+          ...(provider === 'anthropic' ? [
+            { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', hint: 'Rapide & économique — recommandé' },
+            { value: 'claude-sonnet-5',           label: 'Claude Sonnet 5',  hint: 'Meilleur qualité' },
+            { value: 'claude-opus-5',             label: 'Claude Opus 5',    hint: 'Maximum — plus lent' },
+          ] : [
+            { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: 'Rapide & économique — recommandé' },
+            { value: 'gpt-4o',      label: 'GPT-4o',      hint: 'Meilleur qualité' },
+            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', hint: 'Maximum' },
+          ]),
+        ],
+      })
+      if (p.isCancel(model)) { p.cancel('Annulé'); process.exit(0) }
+
+      // Stocker config + clé
+      const aiCfg: AiConfig = {
+        provider: provider as AiProvider,
+        model: String(model),
+        ...(provider === 'anthropic' ? { anthropicKey: apiKey } : { openaiKey: apiKey }),
+      }
+      await writeGlobalAiConfig(aiCfg)
+
+      // Injecter dans process.env pour usage immédiat
+      if (provider === 'anthropic') process.env.ANTHROPIC_API_KEY = apiKey
+      else process.env.OPENAI_API_KEY = apiKey
+
+      pendingAiConfig = aiCfg
+      p.log.success(chalk.green(`IA configurée : ${PROVIDER_LABELS[provider as AiProvider]} / ${String(model)}`))
+      step = 6
+      continue
+    }
   }
 
   // ─── Étape Confirmation ───────────────────────────────────────────────────
@@ -344,48 +445,30 @@ export async function initCommand(cwd: string): Promise<void> {
 
   spin.stop(chalk.green(`${selectedAgents.length} agents générés`))
 
-  // ─── Génération IA du contexte (optionnel) ────────────────────────────────
-  const aiConfig = await readGlobalAiConfig()
-  const detectedProvider = detectAvailableProvider()
-  const aiAvailable = !!aiConfig && !!detectedProvider && aiConfig.provider === detectedProvider
-
-  if (aiAvailable) {
-    console.log()
-    const useAi = await p.confirm({
-      message: `Générer le contexte projet avec ${PROVIDER_LABELS[aiConfig.provider]} (${aiConfig.model}) ?`,
-      initialValue: true,
-    })
-
-    if (!p.isCancel(useAi) && useAi) {
-      const aiSpin = p.spinner()
-      aiSpin.start(`Génération IA en cours avec ${aiConfig.model}...`)
-      try {
-        const generated = await generateContextWithAI(
-          { project: projectName, method, domains, lang },
-          aiConfig,
-        )
-        const contextDir = path.join(cwd, '.kuate', 'context')
-        const date = new Date().toISOString().split('T')[0]
-        const sections = ['memory', 'architecture', 'business', 'constraints', 'glossary'] as const
-        for (const section of sections) {
-          const content = generated[section]
-          if (content?.trim()) {
-            const header = `# ${section.charAt(0).toUpperCase() + section.slice(1)} — ${projectName}\n\n> Généré par IA (${aiConfig.provider} / ${aiConfig.model}) — ${date}\n\n`
-            await fs.writeFile(path.join(contextDir, `${section}.md`), header + content.trim() + '\n', 'utf-8')
-          }
+  // ─── Génération IA du contexte ────────────────────────────────────────────
+  if (pendingAiConfig) {
+    const aiSpin = p.spinner()
+    aiSpin.start(`Génération IA du contexte avec ${pendingAiConfig.model}...`)
+    try {
+      const generated = await generateContextWithAI(
+        { project: projectName, method, domains, lang },
+        pendingAiConfig,
+      )
+      const contextDir = path.join(cwd, '.kuate', 'context')
+      const date = new Date().toISOString().split('T')[0]
+      const sections = ['memory', 'architecture', 'business', 'constraints', 'glossary'] as const
+      for (const section of sections) {
+        const content = generated[section]
+        if (content?.trim()) {
+          const header = `# ${section.charAt(0).toUpperCase() + section.slice(1)} — ${projectName}\n\n> Généré par IA (${pendingAiConfig.provider} / ${pendingAiConfig.model}) — ${date}\n\n`
+          await fs.writeFile(path.join(contextDir, `${section}.md`), header + content.trim() + '\n', 'utf-8')
         }
-        aiSpin.stop(chalk.green('Contexte IA généré — 5 fichiers enrichis'))
-      } catch (err) {
-        aiSpin.stop(chalk.yellow(`Génération IA échouée : ${(err as Error).message}`))
-        p.log.warn('Contexte statique utilisé à la place.')
       }
+      aiSpin.stop(chalk.green('Contexte IA généré — 5 fichiers enrichis ✓'))
+    } catch (err) {
+      aiSpin.stop(chalk.yellow(`Génération IA échouée : ${(err as Error).message}`))
+      p.log.warn('Contexte statique conservé à la place.')
     }
-  } else if (detectedProvider && !aiConfig) {
-    console.log()
-    p.log.info(
-      `Clé ${detectedProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} détectée. ` +
-      chalk.cyan('kuate config ai') + ' pour activer la génération IA.'
-    )
   }
 
   // ─── Résumé final ─────────────────────────────────────────────────────────
