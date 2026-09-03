@@ -6,6 +6,8 @@ Auteur : KUATE JOEL PARFAIT — [LinkedIn](https://www.linkedin.com/in/joelparfa
 Licence : CC BY-NC-ND 4.0 — Usage personnel, partage autorise, modifications et usage commercial interdits  
 Version : 1.2.0
 
+**→ [Voir le scénario complet : LexiFlow SaaS de A à Z](docs/SCENARIO.md)**
+
 ---
 
 ## Presentation
@@ -46,7 +48,7 @@ npm install
 C'est tout. Le `npm install` compile automatiquement tous les packages et rend la commande `kuate` disponible globalement sur votre machine.
 
 ```bash
-kuate --version   # 1.0.0
+kuate --version   # 1.2.0
 kuate init        # lancer le wizard
 ```
 
@@ -123,6 +125,7 @@ kuate workflow show sprint-planning    # Fiche d'un workflow
 kuate memory show                          # Vue d'ensemble de la memoire
 kuate memory show --section architecture   # Une section specifique
 kuate memory add --section constraints     # Ajouter une entree
+kuate memory seed                          # Wizard guidé pour remplir toutes les sections
 kuate memory inject                        # Generer un bloc contexte pour session IA
 ```
 
@@ -157,6 +160,31 @@ kuate conseil \
 ```
 
 Genere un prompt structurant plusieurs experts autour du sujet, pret a etre colle dans Claude ou ChatGPT.
+
+---
+
+### `kuate conseil`
+
+Mode multi-agents : plusieurs experts IA en simultanee sur un sujet, avec option de sauvegarde en memoire.
+
+```bash
+kuate conseil \
+  --agents "architecte-solution,expert-securite,tech-lead" \
+  --topic "Quelle architecture pour une app Next.js avec 100k utilisateurs ?" \
+  --save
+```
+
+---
+
+### `kuate config ai`
+
+Configure le provider IA (Claude ou OpenAI) pour la generation automatique du contexte projet.
+
+```bash
+kuate config ai
+# → choisir Claude / OpenAI, entrer la cle, choisir le modele
+# Cle stockee dans ~/.kuate/global.json (non versionnee)
+```
 
 ---
 
