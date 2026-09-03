@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'fs-extra'
 import { fileURLToPath } from 'node:url'
 import * as p from '@clack/prompts'
 import chalk from 'chalk'
@@ -8,6 +9,10 @@ import {
   loadMethodology,
   filterAgentsForMethodology,
   generateAndSaveAgent,
+  readGlobalAiConfig,
+  detectAvailableProvider,
+  generateContextWithAI,
+  PROVIDER_LABELS,
 } from '@methode-kuate/core'
 import { AGENTS_DEV } from '@methode-kuate/agents-dev'
 import { AGENTS_BUSINESS } from '@methode-kuate/agents-business'
@@ -338,6 +343,50 @@ export async function initCommand(cwd: string): Promise<void> {
   }
 
   spin.stop(chalk.green(`${selectedAgents.length} agents générés`))
+
+  // ─── Génération IA du contexte (optionnel) ────────────────────────────────
+  const aiConfig = await readGlobalAiConfig()
+  const detectedProvider = detectAvailableProvider()
+  const aiAvailable = !!aiConfig && !!detectedProvider && aiConfig.provider === detectedProvider
+
+  if (aiAvailable) {
+    console.log()
+    const useAi = await p.confirm({
+      message: `Générer le contexte projet avec ${PROVIDER_LABELS[aiConfig.provider]} (${aiConfig.model}) ?`,
+      initialValue: true,
+    })
+
+    if (!p.isCancel(useAi) && useAi) {
+      const aiSpin = p.spinner()
+      aiSpin.start(`Génération IA en cours avec ${aiConfig.model}...`)
+      try {
+        const generated = await generateContextWithAI(
+          { project: projectName, method, domains, lang },
+          aiConfig,
+        )
+        const contextDir = path.join(cwd, '.kuate', 'context')
+        const date = new Date().toISOString().split('T')[0]
+        const sections = ['memory', 'architecture', 'business', 'constraints', 'glossary'] as const
+        for (const section of sections) {
+          const content = generated[section]
+          if (content?.trim()) {
+            const header = `# ${section.charAt(0).toUpperCase() + section.slice(1)} — ${projectName}\n\n> Généré par IA (${aiConfig.provider} / ${aiConfig.model}) — ${date}\n\n`
+            await fs.writeFile(path.join(contextDir, `${section}.md`), header + content.trim() + '\n', 'utf-8')
+          }
+        }
+        aiSpin.stop(chalk.green('Contexte IA généré — 5 fichiers enrichis'))
+      } catch (err) {
+        aiSpin.stop(chalk.yellow(`Génération IA échouée : ${(err as Error).message}`))
+        p.log.warn('Contexte statique utilisé à la place.')
+      }
+    }
+  } else if (detectedProvider && !aiConfig) {
+    console.log()
+    p.log.info(
+      `Clé ${detectedProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} détectée. ` +
+      chalk.cyan('kuate config ai') + ' pour activer la génération IA.'
+    )
+  }
 
   // ─── Résumé final ─────────────────────────────────────────────────────────
   const line = grad('─'.repeat(52))

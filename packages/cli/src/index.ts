@@ -3,7 +3,7 @@ import { initI18n } from './i18n/index.js'
 import { detectSystemLang } from './utils/lang.js'
 import { initCommand } from './commands/init.js'
 import { agentListCommand, agentUseCommand, agentInfoCommand } from './commands/agent.js'
-import { configShowCommand } from './commands/config.js'
+import { configShowCommand, configAiCommand } from './commands/config.js'
 import { workflowListCommand, workflowShowCommand } from './commands/workflow.js'
 import { memoryShowCommand, memoryAddCommand, memoryInjectCommand, memorySeedCommand } from './commands/memory.js'
 import { buildCommand } from './commands/build.js'
@@ -50,6 +50,11 @@ configCmd
   .command('show')
   .description('Affiche la configuration courante')
   .action(() => configShowCommand(cwd))
+
+configCmd
+  .command('ai')
+  .description('Configure le provider IA (Claude / OpenAI) pour la génération de contexte')
+  .action(() => configAiCommand())
 
 const workflowCmd = program.command('workflow').description('Gère les workflows par phase KUATE')
 
