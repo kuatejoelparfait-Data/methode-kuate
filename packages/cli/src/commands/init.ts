@@ -13,6 +13,7 @@ import {
   writeGlobalAiConfig,
   detectAvailableProvider,
   generateContextWithAI,
+  analyzeAndSelectAgents,
   getEffectiveApiKey,
   PROVIDER_LABELS,
   DEFAULT_MODELS,
@@ -187,12 +188,13 @@ export async function initCommand(cwd: string): Promise<void> {
     return
   }
 
-  const TOTAL_STEPS = 5
+  const TOTAL_STEPS = 6
 
   // État du wizard — on garde les valeurs pour permettre le retour
   let projectName = ''
   let lang: Lang = detectedLang
   let method: MethodologyId = 'agile'
+  let projectDescription = ''
   let domains: DomainId[] = ['dev']
   let pendingAiConfig: AiConfig | null = null
 
@@ -257,72 +259,75 @@ export async function initCommand(cwd: string): Promise<void> {
       continue
     }
 
-    // ── Étape 4 : Domaines d'agents ───────────────────────────────────────
+    // ── Étape 4 : Description du projet ──────────────────────────────────────
     if (step === 4) {
-      const res = await p.select<{ value: string; label: string }[], string>({
-        message: `${stepLabel(4, TOTAL_STEPS)} Domaines d'agents à installer ?`,
-        initialValue: domains.join('+'),
-        options: [
-          { value: 'dev',                  label: 'Dev Software uniquement',               hint: '8 agents' },
-          { value: 'dev+business',         label: 'Dev + Business & Stratégie',            hint: '14 agents' },
-          { value: 'dev+business+content', label: 'Dev + Business + Contenu',              hint: '19 agents' },
-          { value: 'all',                  label: 'Tous les domaines',                     hint: '23 agents' },
-          { value: 'business',             label: 'Business & Stratégie uniquement',       hint: '6 agents' },
-          { value: 'content',              label: 'Création de Contenu uniquement',        hint: '5 agents' },
-          { value: 'education',            label: 'Formation & Pédagogie uniquement',      hint: '4 agents' },
-          { value: BACK,                   label: chalk.dim('← Retour') },
-        ],
+      console.log()
+      p.log.message(
+        chalk.bold.hex('#FF8C00')('  📋 Description du projet\n') +
+        chalk.dim('  Cette description servira à sélectionner automatiquement les agents\n') +
+        chalk.dim('  les plus pertinents et à générer le fichier KUATE.md du projet.')
+      )
+      console.log()
+
+      const desc = await p.text({
+        message: `${stepLabel(4, TOTAL_STEPS)} Décris le projet en quelques phrases :`,
+        placeholder: 'ex: Plateforme SaaS B2B de gestion de contrats juridiques pour PME. Stack Next.js + PostgreSQL.',
+        initialValue: projectDescription,
+        validate: (v) => {
+          if (v.trim() === '' || v.trim() === BACK) return undefined
+          if (v.trim().length < 10) return 'Description trop courte (min 10 caractères)'
+          return undefined
+        },
       })
-      if (p.isCancel(res)) { p.cancel('Annulé'); process.exit(0) }
-      if (res === BACK) { step = 3; continue }
-      if (res === 'all') {
-        domains = ['dev', 'business', 'content', 'education']
-      } else {
-        domains = (res as string).split('+') as DomainId[]
+      if (p.isCancel(desc)) { p.cancel('Annulé'); process.exit(0) }
+      const descStr = String(desc).trim()
+      if (descStr === BACK || descStr === '') {
+        step = 3
+        continue
       }
+      projectDescription = descStr
       step = 5
       continue
     }
 
-    // ── Étape 5 : Configuration IA (optionnelle) ──────────────────────────
+    // ── Étape 5 : Configuration IA ───────────────────────────────────────────
     if (step === 5) {
-      // Charger config existante si disponible
       const existingAi = await readGlobalAiConfig()
       const existingProvider = detectAvailableProvider()
 
       console.log()
       p.log.message(
-        chalk.bold.hex('#FF8C00')('  💡 Génération IA du contexte projet\n') +
-        chalk.dim('  Une clé API enrichit automatiquement architecture.md, business.md,\n') +
-        chalk.dim('  constraints.md, glossary.md et memory.md avec du contenu intelligent.\n') +
-        chalk.dim('  Votre clé est stockée dans ') + chalk.cyan('~/.kuate/global.json') + chalk.dim(' (local, non versionnée).')
+        chalk.bold.hex('#FF8C00')('  💡 Provider IA\n') +
+        chalk.dim('  Permet la sélection intelligente d\'agents, la génération du contexte\n') +
+        chalk.dim('  et l\'exécution IA (kuate phase / kuate run) sans quitter le terminal.\n') +
+        chalk.dim('  Clé stockée dans ') + chalk.cyan('~/.kuate/global.json') + chalk.dim(' — non versionnée.')
       )
       console.log()
 
       const configureAi = await p.confirm({
-        message: `${stepLabel(5, TOTAL_STEPS)} Configurer un provider IA maintenant ?`,
+        message: `${stepLabel(5, TOTAL_STEPS)} Configurer un provider IA ?`,
         initialValue: !!(existingAi && existingProvider),
       })
       if (p.isCancel(configureAi)) { p.cancel('Annulé'); process.exit(0) }
 
       if (!configureAi) {
-        pendingAiConfig = existingAi  // réutilise config existante si dispo
+        pendingAiConfig = existingAi
         step = 6
         continue
       }
 
-      // Choix provider
       const provider = await p.select<{ value: string; label: string; hint?: string }[], string>({
         message: 'Provider IA ?',
         initialValue: existingAi?.provider ?? existingProvider ?? 'anthropic',
         options: [
-          { value: 'anthropic', label: 'Claude (Anthropic)', hint: 'Recommandé — claude-haiku rapide et économique' },
+          { value: 'anthropic', label: 'Claude (Anthropic)', hint: 'Recommandé — Haiku rapide & économique' },
           { value: 'openai',    label: 'GPT (OpenAI)',        hint: 'gpt-4o-mini recommandé' },
+          { value: BACK,        label: chalk.dim('← Retour') },
         ],
       })
       if (p.isCancel(provider)) { p.cancel('Annulé'); process.exit(0) }
+      if (provider === BACK) { step = 4; continue }
 
-      // Clé API
       const keyName = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
       const existingKey = getEffectiveApiKey(provider as AiProvider)
       let apiKey = existingKey ?? ''
@@ -343,34 +348,28 @@ export async function initCommand(cwd: string): Promise<void> {
         p.log.success(`Clé ${keyName} déjà détectée ✓`)
       }
 
-      // Choix modèle
       const models = DEFAULT_MODELS[provider as AiProvider]
       const model = await p.select<{ value: string; label: string; hint?: string }[], string>({
         message: 'Modèle ?',
         initialValue: existingAi?.provider === provider ? existingAi.model : models[0],
-        options: [
-          ...(provider === 'anthropic' ? [
-            { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', hint: 'Rapide & économique — recommandé' },
-            { value: 'claude-sonnet-5',           label: 'Claude Sonnet 5',  hint: 'Meilleur qualité' },
-            { value: 'claude-opus-5',             label: 'Claude Opus 5',    hint: 'Maximum — plus lent' },
-          ] : [
-            { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: 'Rapide & économique — recommandé' },
-            { value: 'gpt-4o',      label: 'GPT-4o',      hint: 'Meilleur qualité' },
-            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', hint: 'Maximum' },
-          ]),
+        options: provider === 'anthropic' ? [
+          { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', hint: 'Rapide & économique — recommandé' },
+          { value: 'claude-sonnet-5',           label: 'Claude Sonnet 5',  hint: 'Meilleur qualité' },
+          { value: 'claude-opus-5',             label: 'Claude Opus 5',    hint: 'Maximum' },
+        ] : [
+          { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: 'Rapide & économique — recommandé' },
+          { value: 'gpt-4o',      label: 'GPT-4o',      hint: 'Meilleur qualité' },
+          { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', hint: 'Maximum' },
         ],
       })
       if (p.isCancel(model)) { p.cancel('Annulé'); process.exit(0) }
 
-      // Stocker config + clé
       const aiCfg: AiConfig = {
         provider: provider as AiProvider,
         model: String(model),
         ...(provider === 'anthropic' ? { anthropicKey: apiKey } : { openaiKey: apiKey }),
       }
       await writeGlobalAiConfig(aiCfg)
-
-      // Injecter dans process.env pour usage immédiat
       if (provider === 'anthropic') process.env.ANTHROPIC_API_KEY = apiKey
       else process.env.OPENAI_API_KEY = apiKey
 
@@ -379,15 +378,193 @@ export async function initCommand(cwd: string): Promise<void> {
       step = 6
       continue
     }
+
+    // ── Étape 6 : Sélection des agents (intelligente ou manuelle) ─────────
+    if (step === 6) {
+      const allAgents = [...AGENTS_DEV, ...AGENTS_BUSINESS, ...AGENTS_CONTENT, ...AGENTS_EDUCATION]
+
+      // Si IA disponible → proposer sélection intelligente
+      const aiReady = !!pendingAiConfig
+      const modeOptions: { value: string; label: string; hint?: string }[] = []
+
+      if (aiReady) {
+        modeOptions.push(
+          { value: 'describe', label: '✨ Décrire le projet', hint: 'L\'IA sélectionne les agents pertinents' },
+          { value: 'file',     label: '📄 Charger un cahier des charges', hint: 'README, specs, CDC en .md/.txt' },
+        )
+      }
+      modeOptions.push(
+        { value: 'manual', label: 'Sélection manuelle par domaine', hint: '23 agents disponibles' },
+        { value: BACK,     label: chalk.dim('← Retour') },
+      )
+
+      const selectionMode = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: `${stepLabel(6, TOTAL_STEPS)} Comment sélectionner les agents ?`,
+        options: modeOptions,
+      })
+      if (p.isCancel(selectionMode)) { p.cancel('Annulé'); process.exit(0) }
+      if (selectionMode === BACK) { step = 5; continue }
+
+      if (selectionMode === 'describe' || selectionMode === 'file') {
+        let descToUse = projectDescription  // pré-rempli depuis l'étape 4
+
+        if (selectionMode === 'describe') {
+          const desc = await p.text({
+            message: 'Description du projet (pré-remplie depuis l\'étape 4 — modifier si besoin) :',
+            placeholder: 'ex: Plateforme SaaS B2B de gestion de contrats juridiques pour PME.',
+            initialValue: projectDescription,
+            validate: (v) => (v.trim().length < 10 ? 'Description trop courte (min 10 caractères)' : undefined),
+          })
+          if (p.isCancel(desc)) { p.cancel('Annulé'); process.exit(0) }
+          descToUse = String(desc).trim()
+          projectDescription = descToUse
+        } else {
+          // Scanner les fichiers lisibles dans le dossier
+          const docExtensions = ['.md', '.txt', '.yaml', '.yml', '.json']
+          const docPatterns = ['readme', 'cahier', 'specs', 'requirements', 'brief', 'cdc', 'specification']
+          let candidates: string[] = []
+
+          try {
+            const files = await fs.readdir(cwd)
+            candidates = files.filter(f => {
+              const lower = f.toLowerCase()
+              const ext = path.extname(lower)
+              return docExtensions.includes(ext) || docPatterns.some(p => lower.includes(p))
+            })
+          } catch { /* ignore */ }
+
+          if (candidates.length === 0) {
+            p.log.warn('Aucun fichier document trouvé dans ce dossier (.md, .txt, README, CDC...)')
+            p.log.info('Utilisation de la description saisie à l\'étape 4.')
+            if (!projectDescription) {
+              const desc = await p.text({
+                message: 'Décris le projet :',
+                placeholder: 'ex: Application mobile React Native pour gestion de stock',
+                validate: (v) => (v.trim().length < 10 ? 'Trop court (min 10 caractères)' : undefined),
+              })
+              if (p.isCancel(desc)) { p.cancel('Annulé'); process.exit(0) }
+              projectDescription = String(desc).trim()
+            }
+            descToUse = projectDescription
+          } else {
+            const fileChoice = await p.select<{ value: string; label: string }[], string>({
+              message: 'Quel fichier analyser ?',
+              options: candidates.map(f => ({ value: f, label: f })),
+            })
+            if (p.isCancel(fileChoice)) { p.cancel('Annulé'); process.exit(0) }
+            const filePath = path.join(cwd, String(fileChoice))
+            const raw = await fs.readFile(filePath, 'utf-8')
+            descToUse = raw.slice(0, 8000)
+            p.log.success(`Fichier chargé : ${String(fileChoice)} (${raw.length} chars)`)
+          }
+        }
+
+        // Appel IA pour sélection des agents
+        const spin = p.spinner()
+        spin.start('Analyse IA du projet et sélection des agents...')
+
+        try {
+          const agentInputs = allAgents.map(a => ({
+            id: a.id,
+            name: a.nameFr ?? a.name,
+            domain: a.domain,
+            phase: a.phase,
+            description: a.descriptionFr ?? a.description,
+          }))
+
+          const result = await analyzeAndSelectAgents(
+            descToUse,
+            agentInputs,
+            pendingAiConfig!,
+            lang,
+          )
+
+          spin.stop(chalk.green(`${result.agentIds.length} agents sélectionnés par l'IA`))
+
+          console.log()
+          console.log(chalk.dim('  Raisonnement IA : ') + chalk.white(result.reasoning))
+          console.log()
+          console.log(chalk.bold('  Agents sélectionnés :'))
+          for (const id of result.agentIds) {
+            const agent = allAgents.find(a => a.id === id)
+            if (agent) {
+              console.log(
+                `    ${chalk.hex('#FF8C00')('◆')} ${chalk.bold(id.padEnd(28))} ` +
+                chalk.dim(`[${agent.phase}] ${agent.domain}`)
+              )
+            }
+          }
+          console.log()
+
+          const confirmAi = await p.select<{ value: string; label: string }[], string>({
+            message: 'Valider cette sélection ?',
+            options: [
+              { value: 'yes',    label: chalk.green('Oui — utiliser ces agents') },
+              { value: 'manual', label: chalk.dim('Choisir manuellement à la place') },
+              { value: 'retry',  label: chalk.dim('Relancer avec une autre description') },
+            ],
+          })
+          if (p.isCancel(confirmAi)) { p.cancel('Annulé'); process.exit(0) }
+
+          if (confirmAi === 'yes') {
+            // Extraire les domaines des agents sélectionnés
+            const selectedDomains = new Set<DomainId>()
+            for (const id of result.agentIds) {
+              const agent = allAgents.find(a => a.id === id)
+              if (agent) selectedDomains.add(agent.domain as DomainId)
+            }
+            domains = [...selectedDomains]
+            // Stocker les IDs pour filtrage précis plus tard
+            ;(pendingAiConfig as AiConfig & { _selectedAgentIds?: string[] })._selectedAgentIds = result.agentIds
+            step = 7  // exit loop
+            continue
+          } else if (confirmAi === 'retry') {
+            // Reboucle sur step 5 en mode describe
+            continue
+          }
+          // 'manual' → tombe en mode manuel ci-dessous
+        } catch (err) {
+          spin.stop(chalk.yellow(`Analyse IA échouée : ${(err as Error).message}`))
+          p.log.warn('Basculement en sélection manuelle.')
+        }
+      }
+
+      // Mode manuel — sélection par domaine
+      const domainRes = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: 'Domaines d\'agents à installer ?',
+        initialValue: domains.join('+'),
+        options: [
+          { value: 'dev',                  label: 'Dev Software uniquement',          hint: '8 agents' },
+          { value: 'dev+business',         label: 'Dev + Business & Stratégie',       hint: '14 agents' },
+          { value: 'dev+business+content', label: 'Dev + Business + Contenu',         hint: '19 agents' },
+          { value: 'all',                  label: 'Tous les domaines',                hint: '23 agents' },
+          { value: 'business',             label: 'Business & Stratégie uniquement',  hint: '6 agents' },
+          { value: 'content',              label: 'Création de Contenu uniquement',   hint: '5 agents' },
+          { value: 'education',            label: 'Formation & Pédagogie uniquement', hint: '4 agents' },
+          { value: BACK,                   label: chalk.dim('← Retour') },
+        ],
+      })
+      if (p.isCancel(domainRes)) { p.cancel('Annulé'); process.exit(0) }
+      if (domainRes === BACK) { step = 5; continue }
+      if (domainRes === 'all') {
+        domains = ['dev', 'business', 'content', 'education']
+      } else {
+        domains = (domainRes as string).split('+') as DomainId[]
+      }
+      step = 7  // exit loop
+      continue
+    }
   }
 
   // ─── Étape Confirmation ───────────────────────────────────────────────────
   const domainsDisplay = domains.map((d) => DOMAIN_LABELS[d] ?? d).join('\n    ')
+  const shortDesc = projectDescription.length > 60 ? projectDescription.slice(0, 60) + '…' : projectDescription
   p.log.message(
     chalk.bold('\n  Récapitulatif avant génération\n') +
     `    Projet      ${chalk.cyan(projectName)}\n` +
     `    Langue      ${chalk.cyan(lang === 'fr' ? 'Français' : 'English')}\n` +
     `    Méthode     ${chalk.cyan(METHODOLOGY_LABELS[method] ?? method)}\n` +
+    (shortDesc ? `    Description ${chalk.dim(shortDesc)}\n` : '') +
     `    Domaines    ${chalk.cyan(domainsDisplay)}\n`
   )
 
@@ -402,8 +579,8 @@ export async function initCommand(cwd: string): Promise<void> {
   })
   if (p.isCancel(confirm) || confirm === 'quit') { p.cancel('Annulé'); process.exit(0) }
   if (confirm === 'back') {
-    // Relancer depuis l'étape 4
-    step = 4
+    // Relancer depuis l'étape 6 (sélection agents)
+    step = 6
     return initCommand(cwd)
   }
   if (confirm === 'edit') {
@@ -471,6 +648,96 @@ export async function initCommand(cwd: string): Promise<void> {
     }
   }
 
+  // ─── Génération KUATE.md — fichier de contexte maître ────────────────────
+  try {
+    const kuateMdPath = path.join(cwd, 'KUATE.md')
+    const date = new Date().toISOString().split('T')[0]
+
+    const phaseOrder: string[] = ['K', 'U', 'A', 'T', 'E']
+    const phaseNames: Record<string, { name: string; desc: string }> = {
+      K: { name: 'Knower',      desc: 'Découvrir & Contextualiser' },
+      U: { name: 'Unifier',     desc: 'Agréger & Synthétiser' },
+      A: { name: 'Architect',   desc: 'Concevoir & Structurer' },
+      T: { name: 'Transformer', desc: 'Exécuter & Restructurer' },
+      E: { name: 'Evaluator',   desc: 'Évaluer & Valider' },
+    }
+
+    const agentsByPhase: Record<string, typeof selectedAgents> = {}
+    for (const phase of phaseOrder) {
+      agentsByPhase[phase] = selectedAgents.filter(a => a.phase === phase)
+    }
+
+    let md = `# ${projectName} — Contexte KUATE\n\n`
+    md += `> Généré par **kuate init** le ${date}\n\n`
+    md += `---\n\n`
+    md += `## Projet\n\n`
+    md += `| Champ | Valeur |\n`
+    md += `|-------|--------|\n`
+    md += `| Nom | ${projectName} |\n`
+    md += `| Langue | ${lang === 'fr' ? 'Français' : 'English'} |\n`
+    md += `| Méthodologie | ${METHODOLOGY_LABELS[method] ?? method} |\n`
+    md += `| Domaines | ${domains.map(d => DOMAIN_LABELS[d]?.split(' (')[0] ?? d).join(', ')} |\n`
+    md += `| Agents installés | ${selectedAgents.length} |\n\n`
+
+    if (projectDescription) {
+      md += `## Description\n\n${projectDescription}\n\n`
+    }
+
+    md += `---\n\n`
+    md += `## Agents par Phase KUATE\n\n`
+    md += `> Chaque agent a un rôle précis dans la méthode. Utilisez \`kuate phase <K|U|A|T|E>\` pour interagir avec eux.\n\n`
+
+    for (const phase of phaseOrder) {
+      const agents = agentsByPhase[phase] ?? []
+      if (agents.length === 0) continue
+      const info = phaseNames[phase]
+      md += `### Phase ${phase} — ${info.name} · *${info.desc}*\n\n`
+      md += `| Agent ID | Nom | Domaine | Rôle |\n`
+      md += `|----------|-----|---------|------|\n`
+      for (const agent of agents) {
+        const name = (agent as Record<string, unknown>).nameFr as string ?? agent.name ?? agent.id
+        const description = (agent as Record<string, unknown>).descriptionFr as string ?? (agent as Record<string, unknown>).description as string ?? ''
+        const shortDesc = description.length > 80 ? description.slice(0, 80) + '…' : description
+        md += `| \`${agent.id}\` | ${name} | ${agent.domain} | ${shortDesc} |\n`
+      }
+      md += '\n'
+    }
+
+    md += `---\n\n`
+    md += `## Workflow recommandé\n\n`
+    md += `\`\`\`bash\n`
+    md += `# 1. Configurez le contexte du projet\n`
+    md += `kuate memory seed\n\n`
+    md += `# 2. Travaillez phase par phase\n`
+    for (const phase of phaseOrder) {
+      if ((agentsByPhase[phase] ?? []).length > 0) {
+        md += `kuate phase ${phase}    # ${phaseNames[phase].name} — ${phaseNames[phase].desc}\n`
+      }
+    }
+    md += `\n# 3. Exécution directe d'un agent\n`
+    if (selectedAgents.length > 0) {
+      md += `kuate run --agent ${selectedAgents[0].id} --task "Votre tâche ici"\n`
+    }
+    md += `\n# 4. Exportez pour Claude\n`
+    md += `kuate build --target claude\n`
+    md += `\`\`\`\n\n`
+
+    md += `---\n\n`
+    md += `## Instructions pour Claude\n\n`
+    md += `Ce fichier est le contexte maître du projet **${projectName}**.\n\n`
+    md += `Quand vous travaillez avec Claude sur ce projet :\n`
+    md += `1. Partagez ce fichier \`KUATE.md\` en premier message\n`
+    md += `2. Claude comprendra la structure des agents et leurs rôles\n`
+    md += `3. Référencez les agents par leur ID (ex: \`business-analyst\`, \`dev-senior\`)\n`
+    md += `4. Indiquez la phase KUATE dans laquelle vous travaillez\n\n`
+    md += `> 💡 **Conseil** : Mettez à jour ce fichier avec \`kuate memory seed\` après chaque session de travail.\n`
+
+    await fs.writeFile(kuateMdPath, md, 'utf-8')
+    p.log.success(chalk.green('KUATE.md généré — contexte maître du projet ✓'))
+  } catch (err) {
+    p.log.warn(`KUATE.md non généré : ${(err as Error).message}`)
+  }
+
   // ─── Résumé final ─────────────────────────────────────────────────────────
   const line = grad('─'.repeat(52))
   console.log('\n' + line)
@@ -480,13 +747,14 @@ export async function initCommand(cwd: string): Promise<void> {
   console.log(`  ${chalk.dim('Méthode')}     ${chalk.white(METHODOLOGY_LABELS[method] ?? method)}`)
   console.log(`  ${chalk.dim('Agents')}      ${chalk.cyan(String(selectedAgents.length))} générés dans ${chalk.dim('.kuate/agents/')}`)
   console.log(`  ${chalk.dim('Workflows')}   ${chalk.cyan(String(methodology.workflowIds.length))} disponibles`)
-  console.log(`  ${chalk.dim('Mémoire')}     ${chalk.dim('.kuate/context/')} — 5 sections prêtes\n`)
+  console.log(`  ${chalk.dim('Contexte')}    ${chalk.dim('.kuate/context/')} — 5 sections prêtes`)
+  console.log(`  ${chalk.dim('KUATE.md')}    ${chalk.green('✓')} contexte maître — partagez avec Claude\n`)
   console.log(`  ${chalk.bold.hex('#FF8C00')('Prochaine étape recommandée :')}`)
-  console.log(`    ${chalk.bold.cyan('kuate memory seed')}   remplir le contexte projet — c'est ici que la valeur commence\n`)
+  console.log(`    ${chalk.bold.cyan('kuate phase K')}       commencez par la phase Knower — découverte & contexte\n`)
   console.log(`  ${chalk.dim('Autres commandes :')}`)
-  console.log(`    ${chalk.cyan('kuate agent list')}          liste tes agents`)
-  console.log(`    ${chalk.cyan('kuate workflow list')}       explore les workflows`)
-  console.log(`    ${chalk.cyan('kuate memory inject')}      génère le contexte IA`)
-  console.log(`    ${chalk.cyan('kuate build --target claude')}  exporte pour Claude\n`)
+  console.log(`    ${chalk.cyan('kuate agent list')}               liste tes agents`)
+  console.log(`    ${chalk.cyan('kuate memory seed')}              complète le contexte projet`)
+  console.log(`    ${chalk.cyan('kuate run --agent <id> --task')}  exécution directe d'un agent`)
+  console.log(`    ${chalk.cyan('kuate build --target claude')}    exporte pour Claude\n`)
   console.log(line + '\n')
 }
