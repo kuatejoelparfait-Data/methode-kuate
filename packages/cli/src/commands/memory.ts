@@ -87,6 +87,113 @@ export async function memoryAddCommand(cwd: string, section: string): Promise<vo
   p.log.success(chalk.green(`Entrée ajoutée dans .kuate/context/${section}.md`))
 }
 
+export async function memorySeedCommand(cwd: string): Promise<void> {
+  if (!isKuateProject(cwd)) {
+    console.error(chalk.red("Aucun projet KUATE trouvé. Lancez kuate init d'abord."))
+    process.exit(1)
+  }
+
+  const config = await readConfig(cwd)
+  initI18n(config.lang)
+
+  console.log()
+  console.log(chalk.bold.hex('#FF8C00')('  KUATE MEMORY SEED'))
+  console.log(chalk.dim('  Répondez aux questions pour remplir votre mémoire projet.'))
+  console.log(chalk.dim('  Laissez vide et appuyez Entrée pour ignorer une section.'))
+  console.log()
+
+  const timestamp = new Date().toISOString().split('T')[0]
+
+  // ── Architecture ──────────────────────────────────────────────────────────
+  const stack = await p.text({ message: 'Stack technique principale ?', placeholder: 'Next.js 14, PostgreSQL 15, Docker' })
+  if (p.isCancel(stack)) { p.cancel('Annulé'); process.exit(0) }
+
+  const stackWhy = await p.text({ message: 'Pourquoi ces choix technologiques ?', placeholder: 'SSR natif, contrainte client, performance' })
+  if (p.isCancel(stackWhy)) { p.cancel('Annulé'); process.exit(0) }
+
+  const techConstraints = await p.text({ message: 'Contraintes techniques non négociables ?', placeholder: 'Pas de cloud US, Node.js 20+ obligatoire' })
+  if (p.isCancel(techConstraints)) { p.cancel('Annulé'); process.exit(0) }
+
+  // ── Business ──────────────────────────────────────────────────────────────
+  const objective = await p.text({ message: 'Objectif principal du projet ?', placeholder: 'Réduire le temps de traitement des dossiers de 40%' })
+  if (p.isCancel(objective)) { p.cancel('Annulé'); process.exit(0) }
+
+  const client = await p.text({ message: 'Client / organisation concernée ?', placeholder: 'Startup B2B SaaS, 12 personnes' })
+  if (p.isCancel(client)) { p.cancel('Annulé'); process.exit(0) }
+
+  const stakeholders = await p.text({ message: 'Parties prenantes clés ?', placeholder: 'CTO (décideur), 2 devs seniors, 1 PO' })
+  if (p.isCancel(stakeholders)) { p.cancel('Annulé'); process.exit(0) }
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  const regulatory = await p.text({ message: 'Contraintes réglementaires ou de conformité ?', placeholder: 'RGPD, données hébergées EU, ISO 27001' })
+  if (p.isCancel(regulatory)) { p.cancel('Annulé'); process.exit(0) }
+
+  const budget = await p.text({ message: 'Contraintes budget / timeline / ressources ?', placeholder: 'MVP en 3 mois, budget infra < 500€/mois' })
+  if (p.isCancel(budget)) { p.cancel('Annulé'); process.exit(0) }
+
+  const outOfScope = await p.text({ message: 'Ce qui est hors scope ou absolument interdit ?', placeholder: 'Pas de microservices pour la V1, pas de mobile natif' })
+  if (p.isCancel(outOfScope)) { p.cancel('Annulé'); process.exit(0) }
+
+  // ── Glossary ──────────────────────────────────────────────────────────────
+  const glossary = await p.text({ message: 'Termes métier spécifiques ? (terme:définition, un par ligne)', placeholder: 'Dossier: unité de travail principale\nClient: utilisateur final payant' })
+  if (p.isCancel(glossary)) { p.cancel('Annulé'); process.exit(0) }
+
+  // ── Memory ────────────────────────────────────────────────────────────────
+  const decisions = await p.text({ message: 'Décisions importantes déjà prises ?', placeholder: 'Architecture monolithe choisie après évaluation microservices' })
+  if (p.isCancel(decisions)) { p.cancel('Annulé'); process.exit(0) }
+
+  // ── Écriture ──────────────────────────────────────────────────────────────
+  const spin = p.spinner()
+  spin.start('Écriture dans .kuate/context/...')
+
+  let written = 0
+
+  if (String(stack).trim() || String(stackWhy).trim() || String(techConstraints).trim()) {
+    const lines = [`## Seed — ${timestamp}\n`]
+    if (String(stack).trim())         lines.push(`**Stack :** ${String(stack).trim()}`)
+    if (String(stackWhy).trim())      lines.push(`**Rationale :** ${String(stackWhy).trim()}`)
+    if (String(techConstraints).trim()) lines.push(`**Contraintes techniques :** ${String(techConstraints).trim()}`)
+    await fs.appendFile(getSectionPath(cwd, 'architecture'), '\n' + lines.join('\n') + '\n')
+    written++
+  }
+
+  if (String(objective).trim() || String(client).trim() || String(stakeholders).trim()) {
+    const lines = [`## Seed — ${timestamp}\n`]
+    if (String(objective).trim())    lines.push(`**Objectif :** ${String(objective).trim()}`)
+    if (String(client).trim())       lines.push(`**Client :** ${String(client).trim()}`)
+    if (String(stakeholders).trim()) lines.push(`**Parties prenantes :** ${String(stakeholders).trim()}`)
+    await fs.appendFile(getSectionPath(cwd, 'business'), '\n' + lines.join('\n') + '\n')
+    written++
+  }
+
+  if (String(regulatory).trim() || String(budget).trim() || String(outOfScope).trim()) {
+    const lines = [`## Seed — ${timestamp}\n`]
+    if (String(regulatory).trim())  lines.push(`**Réglementaire :** ${String(regulatory).trim()}`)
+    if (String(budget).trim())      lines.push(`**Budget / Timeline :** ${String(budget).trim()}`)
+    if (String(outOfScope).trim())  lines.push(`**Hors scope :** ${String(outOfScope).trim()}`)
+    await fs.appendFile(getSectionPath(cwd, 'constraints'), '\n' + lines.join('\n') + '\n')
+    written++
+  }
+
+  if (String(glossary).trim()) {
+    const entry = `\n## Seed — ${timestamp}\n\n${String(glossary).trim()}\n`
+    await fs.appendFile(getSectionPath(cwd, 'glossary'), entry)
+    written++
+  }
+
+  if (String(decisions).trim()) {
+    const entry = `\n## Seed — ${timestamp}\n\n${String(decisions).trim()}\n`
+    await fs.appendFile(getSectionPath(cwd, 'memory'), entry)
+    written++
+  }
+
+  spin.stop(chalk.green(`${written} section(s) remplies dans .kuate/context/`))
+
+  console.log()
+  console.log(chalk.dim('  Lancez ') + chalk.cyan('kuate memory inject') + chalk.dim(' pour générer votre bloc contexte IA'))
+  console.log()
+}
+
 export async function memoryInjectCommand(cwd: string): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouvé. Lancez kuate init d'abord."))

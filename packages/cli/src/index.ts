@@ -5,7 +5,7 @@ import { initCommand } from './commands/init.js'
 import { agentListCommand, agentUseCommand, agentInfoCommand } from './commands/agent.js'
 import { configShowCommand } from './commands/config.js'
 import { workflowListCommand, workflowShowCommand } from './commands/workflow.js'
-import { memoryShowCommand, memoryAddCommand, memoryInjectCommand } from './commands/memory.js'
+import { memoryShowCommand, memoryAddCommand, memoryInjectCommand, memorySeedCommand } from './commands/memory.js'
 import { buildCommand } from './commands/build.js'
 import { doctorCommand } from './commands/doctor.js'
 import { conseilCommand } from './commands/conseil.js'
@@ -82,6 +82,11 @@ memoryCmd
   .command('inject')
   .description('Génère un bloc contexte prêt à coller dans une session IA')
   .action(() => memoryInjectCommand(cwd))
+
+memoryCmd
+  .command('seed')
+  .description('Wizard guidé pour remplir la mémoire projet dès le départ')
+  .action(() => memorySeedCommand(cwd))
 
 program
   .command('build')
