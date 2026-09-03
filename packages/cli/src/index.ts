@@ -9,8 +9,10 @@ import { memoryShowCommand, memoryAddCommand, memoryInjectCommand, memorySeedCom
 import { buildCommand } from './commands/build.js'
 import { doctorCommand } from './commands/doctor.js'
 import { conseilCommand } from './commands/conseil.js'
+import { runCommand } from './commands/run.js'
+import { phaseCommand } from './commands/phase.js'
 
-const VERSION = '1.2.0'
+const VERSION = '1.3.0'
 const cwd = process.cwd()
 
 initI18n(detectSystemLang())
@@ -113,5 +115,25 @@ program
   .action((opts: { agents: string; topic: string; save: boolean }) =>
     conseilCommand(cwd, opts.agents.split(',').map(s => s.trim()), opts.topic, opts.save)
   )
+
+program
+  .command('run')
+  .description("Exécute un agent IA sur une tâche et écrit le résultat dans le projet")
+  .requiredOption('--agent <nom>', 'Nom de l\'agent (ex: dev-senior, architecte-solution)')
+  .requiredOption('--task <texte>', 'Description de la tâche à réaliser')
+  .action((opts: { agent: string; task: string }) => runCommand(cwd, opts.agent, opts.task))
+
+program
+  .command('phase <phase>')
+  .description('Lance une session guidée pour une phase KUATE (K|U|A|T|E)')
+  .action((phase: string) => {
+    const validPhases = ['K', 'U', 'A', 'T', 'E']
+    const p = phase.toUpperCase()
+    if (!validPhases.includes(p)) {
+      console.error(`Phase invalide "${phase}". Utilisez K, U, A, T ou E.`)
+      process.exit(1)
+    }
+    phaseCommand(cwd, p as 'K' | 'U' | 'A' | 'T' | 'E')
+  })
 
 program.parse(process.argv)

@@ -1,5 +1,7 @@
 # Scénario Concret — Méthode KUATE en Action
 
+> Version 1.3.0 — Ce scénario utilise le cycle complet : `kuate phase`, `kuate run`, `kuate conseil`
+
 **Projet : LexiFlow** — Plateforme SaaS B2B de gestion de contrats juridiques pour PME  
 **Équipe :** 1 CTO (décideur), 2 devs seniors, 1 designer UX, 1 juriste  
 **Stack cible :** Next.js 14, PostgreSQL 15, Stripe, hébergement EU  
@@ -76,59 +78,68 @@ kuate init
 
 **Objectif :** Comprendre le domaine juridique, cartographier les besoins, identifier les risques réglementaires.
 
-### Session 1 — Analyse des besoins avec business-analyst
-
 ```bash
-kuate agent use business-analyst
-# → copie le prompt dans le presse-papier
-```
-
-**Coller dans Claude + contexte mémoire :**
-
-```bash
-kuate memory inject
+kuate phase K
 ```
 
 ```
-[CONTEXTE KUATE — LexiFlow]
-Méthode: agile | Langue: FR | Agents: 19
+  [ K ] Knower — Découvrir & Contextualiser
+  3 agent(s) disponible(s) · Claude / claude-haiku-4-5-20251001
 
-ARCHITECTURE: Stack Next.js 14, PostgreSQL 15, Stripe. Rationale: SSR natif...
-BUSINESS: Objectif réduire temps de traitement contrats PME de 60%...
-CONSTRAINTS: RGPD strict, données France, budget infra < 600€/mois...
-GLOSSARY: Contrat: document juridique liant deux parties...
-MEMORY: Décision: Agile choisi pour itérations rapides avec retours juriste...
+  Quel agent pour cette tâche ?
+  > business-analyst
 
-[FIN CONTEXTE]
-```
+  Décris la tâche :
+  > Analyser les besoins d'une plateforme de gestion de contrats juridiques B2B
 
-**Prompt collé à Claude avec ce contexte → l'agent business-analyst analyse :**
-- User stories pour 3 types d'utilisateurs : juriste, DG PME, assistant administratif
-- 47 exigences fonctionnelles priorisées (MoSCoW)
-- Carte des risques RGPD : données personnelles dans les contrats (noms, adresses, RIB)
+  ◆ business-analyst en cours...
+  ─────────────────────────────────────────────────────
 
-**Résultat → sauvegarder dans la mémoire :**
+  [réponse IA streamée en temps réel...]
 
-```bash
-kuate memory add --section business
-# → "47 user stories collectées. Risque RGPD majeur : RIB et données bancaires dans contrats."
-```
+  En tant que Business Analyst spécialisé...
 
-### Session 2 — Analyse financière avec expert-finance-tech
+  ## User Stories — LexiFlow
 
-```bash
-kuate agent use expert-finance-tech
-kuate memory inject
-```
+  ### Juriste (utilisateur principal)
+  - US-01 : En tant que juriste, je veux créer un modèle de contrat...
+  - US-02 : En tant que juriste, je veux envoyer un contrat en signature...
+  ...47 user stories au total
 
-**Claude avec ce profil calcule :**
-- Pricing : 49€/mois (starter 5 users) → 199€/mois (pro 20 users) → 599€/mois (enterprise)
-- Break-even à 87 clients → 14 mois
-- ROI client moyen : 8h/semaine économisées × 60€/h = 480€/mois économisés
+  ## Risques RGPD identifiés
+  - 🔴 CRITIQUE : RIB et données bancaires dans les annexes de contrats
+  - 🟠 ÉLEVÉ : Signatures électroniques → données biométriques (eIDAS)
+  - 🟡 MOYEN : Logs d'accès aux contrats → données de connexion personnelles
 
-```bash
-kuate memory add --section business
-# → "Pricing validé : 49/199/599€. Break-even 14 mois. ROI client 480€/mois."
+  ─────────────────────────────────────────────────────
+
+  2 fichier(s) détecté(s) :
+    docs/user-stories.md
+    docs/risks-rgpd.md
+
+  Sauvegarder ces fichiers ? [Oui]
+  ✓ docs/user-stories.md
+  ✓ docs/risks-rgpd.md
+
+  Note mémoire ? > 47 user stories. Risque RGPD critique : RIB dans annexes.
+  ✓ Mémorisé dans .kuate/context/memory.md
+
+  Continuer en phase K avec un autre agent ? [Oui]
+
+  Quel agent ? > expert-finance-tech
+  Tâche ? > Calculer le pricing et ROI pour LexiFlow SaaS B2B
+
+  [réponse IA...]
+  → Pricing : 49€ / 199€ / 599€/mois
+  → Break-even : 87 clients → 14 mois
+  → ROI client : 480€/mois économisés
+
+  Note mémoire ? > Pricing validé 49/199/599€. Break-even 14 mois.
+
+  Continuer en phase K ? [Non]
+
+  Phase suivante : [ U ] Unifier — Agréger & Synthétiser
+  Lancez : kuate phase U
 ```
 
 ---
@@ -190,8 +201,8 @@ kuate memory add --section memory
 ### Session 4 — Architecture avec architecte-solution
 
 ```bash
-kuate agent use architecte-solution
-kuate memory inject
+kuate run --agent architecte-solution \
+  --task "Concevoir l'architecture complète de LexiFlow : stack, BDD, auth, stockage, signature, paiement"
 ```
 
 **L'agent conçoit :**
@@ -239,20 +250,38 @@ kuate memory add --section constraints
 
 **Objectif :** Implémenter, livrer les sprints, adapter au feedback.
 
-### Session 6 — Sprint 1 avec dev-senior
+### Session 6 — Sprint 1 avec dev-senior via `kuate phase T`
 
 ```bash
-kuate agent use dev-senior
-kuate memory inject
+kuate phase T
 ```
 
-**Prompt : "Implémenter le système d'authentification et RBAC pour LexiFlow"**
+```
+  [ T ] Transformer — Exécuter & Restructurer
+  7 agent(s) disponible(s)
 
-L'agent génère :
-- Structure Prisma schema (User, Organization, Role, Permission)
-- Middleware Next.js pour RBAC
-- Tests d'intégration Vitest pour chaque rôle
-- Hook `usePermission()` côté client
+  Quel agent ? > dev-senior
+  Tâche ? > Implémenter le système d'authentification et RBAC pour LexiFlow avec Clerk
+
+  ◆ dev-senior en cours...
+  ─────────────────────────
+
+  [code généré en streaming...]
+
+  4 fichier(s) détecté(s) :
+    prisma/schema.prisma
+    src/middleware.ts
+    src/hooks/usePermission.ts
+    src/lib/auth.ts
+
+  Sauvegarder ? [Oui]
+  ✓ prisma/schema.prisma
+  ✓ src/middleware.ts
+  ✓ src/hooks/usePermission.ts
+  ✓ src/lib/auth.ts
+
+  Note mémoire ? > Auth RBAC implémentée avec Clerk. 4 rôles : owner, admin, editor, viewer.
+```
 
 ### Session 7 — Sprint 3 avec dev-senior + expert-ia-ml
 
@@ -292,8 +321,8 @@ kuate memory inject
 ### Session 9 — Stratégie QA avec qa-strategist
 
 ```bash
-kuate agent use qa-strategist
-kuate memory inject
+kuate run --agent qa-strategist \
+  --task "Plan de test LexiFlow : signature eIDAS, RGPD, RBAC, audit logs, performance 500 users"
 ```
 
 **Plan de test basé sur les risques :**
@@ -316,8 +345,8 @@ Tests de charge : 500 utilisateurs simultanés
 ### Session 10 — Documentation avec copywriter-technique
 
 ```bash
-kuate agent use copywriter-technique
-kuate memory inject
+kuate run --agent copywriter-technique \
+  --task "Générer la documentation API REST OpenAPI 3.0 + guide utilisateur LexiFlow"
 ```
 
 **Génère :**
@@ -371,17 +400,22 @@ kuate memory show
 ## Commandes clés de ce scénario
 
 ```bash
-# Initialiser avec IA
+# Initialiser avec IA (wizard 5 étapes + config Claude/OpenAI)
 kuate init
 
-# Injecter le contexte dans une session IA
-kuate memory inject
+# Cycle complet par phase — IA génère du code dans votre projet
+kuate phase K    # Analyse, user stories, risques
+kuate phase U    # Backlog, sprints, planification
+kuate phase A    # Architecture, sécurité, schémas
+kuate phase T    # Génération de code — fichiers sauvegardés dans le projet
+kuate phase E    # Tests, QA, documentation
 
-# Utiliser un agent spécialisé
-kuate agent use <nom-agent>
+# Exécuter un agent sur une tâche précise
+kuate run --agent dev-senior --task "créer l'API de signature avec Yousign"
+kuate run --agent expert-securite --task "audit OWASP du module auth"
 
-# Session multi-experts sur un sujet
-kuate conseil --agents "agent1,agent2" --topic "..." --save
+# Session multi-experts sur un sujet complexe
+kuate conseil --agents "architecte-solution,expert-securite" --topic "..." --save
 
 # Voir les workflows d'une phase
 kuate workflow list --phase K|U|A|T|E

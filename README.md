@@ -4,7 +4,7 @@
 
 Auteur : KUATE JOEL PARFAIT — [LinkedIn](https://www.linkedin.com/in/joelparfaitkuate/)  
 Licence : CC BY-NC-ND 4.0 — Usage personnel, partage autorise, modifications et usage commercial interdits  
-Version : 1.2.0
+Version : 1.3.0
 
 **→ [Voir le scénario complet : LexiFlow SaaS de A à Z](docs/SCENARIO.md)**
 
@@ -48,7 +48,7 @@ npm install
 C'est tout. Le `npm install` compile automatiquement tous les packages et rend la commande `kuate` disponible globalement sur votre machine.
 
 ```bash
-kuate --version   # 1.2.0
+kuate --version   # 1.3.0
 kuate init        # lancer le wizard
 ```
 
@@ -57,23 +57,25 @@ kuate init        # lancer le wizard
 ## Demarrage rapide
 
 ```bash
-# 1. Initialiser la methode dans votre projet
+# 1. Initialiser (wizard 5 étapes — inclut config IA)
 kuate init
 
-# 2. Lister les agents disponibles
-kuate agent list
+# 2. Lancer une session guidée par phase
+kuate phase K    # Knower — analyse et découverte
+kuate phase A    # Architect — conception technique
+kuate phase T    # Transformer — génération de code
 
-# 3. Copier un prompt d'agent dans le presse-papier
-kuate agent use architecte-solution
+# 3. Exécuter un agent directement sur une tâche
+kuate run --agent dev-senior --task "créer le système d'authentification"
 
-# 4. Voir les workflows par phase
-kuate workflow list
+# 4. Session multi-experts sur un sujet
+kuate conseil --agents "architecte-solution,expert-securite" --topic "..." --save
 
-# 5. Exporter pour Claude
-kuate build --target claude
-
-# 6. Injecter la memoire dans une session IA
+# 5. Injecter la mémoire dans une session IA externe
 kuate memory inject
+
+# 6. Exporter pour votre outil IA préféré
+kuate build --target claude
 ```
 
 ---
@@ -160,6 +162,34 @@ kuate conseil \
 ```
 
 Genere un prompt structurant plusieurs experts autour du sujet, pret a etre colle dans Claude ou ChatGPT.
+
+---
+
+### `kuate phase <K|U|A|T|E>`
+
+Session guidée et interactive pour une phase KUATE. L'agent IA génère du code, des specs ou des analyses **directement dans votre projet** via l'API configurée.
+
+```bash
+kuate phase K   # Knower    — analyse, user stories, risques
+kuate phase U   # Unifier   — backlog, sprints, planification
+kuate phase A   # Architect — architecture, sécurité, schémas
+kuate phase T   # Transformer — génération de code dans le projet
+kuate phase E   # Evaluator  — tests, QA, documentation
+```
+
+Boucle interactive : choisir l'agent → décrire la tâche → réponse IA streamée → sauvegarder fichiers générés → note mémoire → continuer ou passer à la phase suivante.
+
+---
+
+### `kuate run`
+
+Exécute un agent IA sur une tâche précise. Le code généré est détecté automatiquement et proposé à la sauvegarde dans le projet.
+
+```bash
+kuate run --agent dev-senior --task "créer le système d'authentification avec Clerk"
+kuate run --agent architecte-solution --task "concevoir le schéma Prisma pour LexiFlow"
+kuate run --agent expert-securite --task "audit OWASP du module de signature"
+```
 
 ---
 
