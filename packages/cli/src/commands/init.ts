@@ -8,6 +8,9 @@ import {
   isKuateProject,
   loadMethodology,
   filterAgentsForMethodology,
+  generateNextSuggestions,
+  runAgent,
+  detectFilesInOutput,
   generateAndSaveAgent,
   readGlobalAiConfig,
   writeGlobalAiConfig,
@@ -748,13 +751,266 @@ export async function initCommand(cwd: string): Promise<void> {
   console.log(`  ${chalk.dim('Agents')}      ${chalk.cyan(String(selectedAgents.length))} générés dans ${chalk.dim('.kuate/agents/')}`)
   console.log(`  ${chalk.dim('Workflows')}   ${chalk.cyan(String(methodology.workflowIds.length))} disponibles`)
   console.log(`  ${chalk.dim('Contexte')}    ${chalk.dim('.kuate/context/')} — 5 sections prêtes`)
-  console.log(`  ${chalk.dim('KUATE.md')}    ${chalk.green('✓')} contexte maître — partagez avec Claude\n`)
-  console.log(`  ${chalk.bold.hex('#FF8C00')('Prochaine étape recommandée :')}`)
-  console.log(`    ${chalk.bold.cyan('kuate phase K')}       commencez par la phase Knower — découverte & contexte\n`)
-  console.log(`  ${chalk.dim('Autres commandes :')}`)
-  console.log(`    ${chalk.cyan('kuate agent list')}               liste tes agents`)
-  console.log(`    ${chalk.cyan('kuate memory seed')}              complète le contexte projet`)
-  console.log(`    ${chalk.cyan('kuate run --agent <id> --task')}  exécution directe d'un agent`)
-  console.log(`    ${chalk.cyan('kuate build --target claude')}    exporte pour Claude\n`)
+  console.log(`  ${chalk.dim('KUATE.md')}    ${chalk.green('✓')} contexte maître — partagez avec Claude`)
   console.log(line + '\n')
+
+  // ─── Launcher post-init ────────────────────────────────────────────────────
+  console.log(
+    chalk.bold.hex('#FF8C00')('  Que voulez-vous faire maintenant ?\n') +
+    chalk.dim('  Vous avez ') + chalk.cyan(String(selectedAgents.length)) +
+    chalk.dim(' agents prêts. Commençons à les utiliser.')
+  )
+  console.log()
+
+  const LAUNCH_NEXT    = 'next'
+  const LAUNCH_MEMORY  = 'memory'
+  const LAUNCH_SPECS   = 'specs'
+  const LAUNCH_SKIP    = 'skip'
+
+  const launch = await p.select<{ value: string; label: string; hint?: string }[], string>({
+    message: 'Choisissez une action :',
+    options: [
+      {
+        value: LAUNCH_NEXT,
+        label: chalk.bold('🧠 Laisser l\'IA me guider') + chalk.dim(' — recommandé'),
+        hint: 'L\'IA analyse le projet et propose les prochaines tâches concrètes',
+      },
+      {
+        value: LAUNCH_SPECS,
+        label: '📋 Créer les specs du projet maintenant',
+        hint: 'L\'agent business-analyst rédige les exigences et user stories',
+      },
+      {
+        value: LAUNCH_MEMORY,
+        label: '📝 Remplir le contexte projet (kuate memory seed)',
+        hint: 'Décris l\'architecture, les contraintes, le glossaire — enrichit les suggestions',
+      },
+      {
+        value: LAUNCH_SKIP,
+        label: chalk.dim('→ Continuer plus tard'),
+        hint: 'Tapez kuate next quand vous êtes prêt',
+      },
+    ],
+  })
+
+  if (p.isCancel(launch) || launch === LAUNCH_SKIP) {
+    console.log()
+    console.log(chalk.dim('  Quand vous êtes prêt : ') + chalk.cyan('kuate next'))
+    console.log()
+    return
+  }
+
+  if (launch === LAUNCH_MEMORY) {
+    console.log()
+    const { memorySeedCommand } = await import('./memory.js')
+    await memorySeedCommand(cwd)
+    return
+  }
+
+  if (launch === LAUNCH_SPECS) {
+    // Lancer business-analyst directement pour rédiger les specs
+    const agentId = 'business-analyst'
+    const agentFile = path.join(cwd, '.kuate', 'agents', `${agentId}.md`)
+
+    if (!pendingAiConfig) {
+      console.log()
+      p.log.warn('IA non configurée. Configurez-la avec : kuate config ai')
+      return
+    }
+
+    if (!fs.existsSync(agentFile)) {
+      p.log.warn(`L'agent ${agentId} n'est pas installé dans ce projet. Lancez kuate next pour d'autres options.`)
+      return
+    }
+
+    const taskSpec = lang === 'fr'
+      ? `Tu es l'agent business-analyst du projet "${projectName}". \
+Rédige un document de spécifications complet (specs) pour ce projet. \
+Inclus : objectif, utilisateurs cibles, user stories (format "En tant que... je veux... afin de..."), \
+critères d'acceptation, contraintes techniques, et le découpage en phases KUATE (K/U/A/T/E). \
+Base-toi sur les informations disponibles dans le contexte projet.`
+      : `You are the business-analyst agent of project "${projectName}". \
+Write a complete specification document (specs) for this project. \
+Include: objective, target users, user stories ("As a... I want... So that..."), \
+acceptance criteria, technical constraints, and KUATE phase breakdown (K/U/A/T/E). \
+Use the project context available.`
+
+    console.log()
+    console.log(chalk.bold.hex('#FFB300')(`  ◆ business-analyst — Rédaction des specs`))
+    console.log(chalk.dim('  ' + '─'.repeat(55)))
+    console.log()
+
+    let result
+    try {
+      result = await runAgent({
+        agentId,
+        task: taskSpec,
+        cwd,
+        aiConfig: pendingAiConfig,
+        onChunk: (chunk) => process.stdout.write(chunk),
+      })
+    } catch (err) {
+      console.error(chalk.red(`\n  Erreur IA : ${(err as Error).message}`))
+      return
+    }
+
+    console.log('\n')
+    console.log(chalk.dim('  ' + '─'.repeat(55)))
+    console.log()
+
+    // Proposer de sauvegarder les specs
+    const files = detectFilesInOutput(result.content)
+    if (files.length > 0) {
+      const saveFiles = await p.confirm({
+        message: `Sauvegarder ${files.length} fichier(s) de specs dans le projet ?`,
+        initialValue: true,
+      })
+      if (!p.isCancel(saveFiles) && saveFiles) {
+        for (const f of files) {
+          await fs.ensureDir(path.dirname(path.join(cwd, f.filename)))
+          await fs.writeFile(path.join(cwd, f.filename), f.content, 'utf-8')
+          console.log(`    ${chalk.green('✓')} ${f.filename}`)
+        }
+      }
+    } else {
+      // Sauvegarder les specs comme docs/specs.md
+      const saveSpec = await p.confirm({
+        message: 'Sauvegarder les specs dans docs/specs.md ?',
+        initialValue: true,
+      })
+      if (!p.isCancel(saveSpec) && saveSpec) {
+        await fs.ensureDir(path.join(cwd, 'docs'))
+        await fs.writeFile(path.join(cwd, 'docs', 'specs.md'), result.content, 'utf-8')
+        p.log.success(chalk.green('Specs sauvegardées dans docs/specs.md'))
+      }
+    }
+
+    // Mémoriser
+    const date = new Date().toISOString().split('T')[0]
+    await fs.appendFile(
+      path.join(cwd, '.kuate', 'context', 'memory.md'),
+      `\n## ${date} — business-analyst\n\nSpécifications initiales du projet rédigées.\n`
+    )
+
+    console.log()
+    p.log.success('Specs générées. Prochaine étape : ' + chalk.cyan('kuate next'))
+    console.log()
+    return
+  }
+
+  // LAUNCH_NEXT — assistant IA guidé
+  if (launch === LAUNCH_NEXT) {
+    if (!pendingAiConfig) {
+      console.log()
+      p.log.warn('IA non configurée. Configurez-la avec : ' + chalk.cyan('kuate config ai'))
+      console.log(chalk.dim('  Puis lancez : ') + chalk.cyan('kuate next'))
+      return
+    }
+
+    console.log()
+    const agentInputs = selectedAgents.map(a => ({
+      id: a.id,
+      name: (a as Record<string, unknown>).nameFr as string ?? a.name,
+      domain: a.domain,
+      phase: a.phase,
+      description: (a as Record<string, unknown>).descriptionFr as string ?? '',
+    }))
+
+    const spin2 = p.spinner()
+    spin2.start('L\'IA analyse le projet et génère les premières suggestions...')
+
+    let suggestions
+    try {
+      suggestions = await generateNextSuggestions(
+        `Projet : ${projectName}\nMéthodologie : ${method}\nDomaines : ${domains.join(', ')}\n${projectDescription ? `Description : ${projectDescription}` : ''}`,
+        agentInputs,
+        '',
+        pendingAiConfig,
+        lang,
+      )
+      spin2.stop(chalk.green(`${suggestions.length} suggestions prêtes`))
+    } catch (err) {
+      spin2.stop(chalk.yellow(`Erreur IA : ${(err as Error).message}`))
+      console.log(chalk.dim('  Lancez : ') + chalk.cyan('kuate next') + chalk.dim(' quand prêt.'))
+      return
+    }
+
+    const PHASE_COLORS: Record<string, string> = {
+      K: '#FFB300', U: '#FF8C00', A: '#E06000', T: '#C04800', E: '#8B3500',
+    }
+
+    console.log()
+    const actionChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
+      message: 'Première action recommandée — choisissez :',
+      options: [
+        ...suggestions.slice(0, 6).map((s, i) => ({
+          value: String(i),
+          label: chalk.bold.hex(PHASE_COLORS[s.phase] ?? '#FF8C00')(`[${s.phase}]`) +
+            '  ' + chalk.cyan(s.agentId.padEnd(26)) +
+            chalk.white(s.task.length > 50 ? s.task.slice(0, 50) + '…' : s.task),
+          hint: s.reason,
+        })),
+        { value: 'skip', label: chalk.dim('→ Je lance kuate next plus tard') },
+      ],
+    })
+
+    if (p.isCancel(actionChoice) || actionChoice === 'skip') {
+      console.log()
+      console.log(chalk.dim('  Prêt quand vous êtes : ') + chalk.cyan('kuate next'))
+      console.log()
+      return
+    }
+
+    const selected = suggestions[parseInt(actionChoice, 10)]
+    console.log()
+    console.log(chalk.bold.hex(PHASE_COLORS[selected.phase] ?? '#FF8C00')(`  ◆ ${selected.agentId}`))
+    console.log(chalk.dim(`  ${selected.task}`))
+    console.log(chalk.dim('  ' + '─'.repeat(55)))
+    console.log()
+
+    try {
+      const res = await runAgent({
+        agentId: selected.agentId,
+        task: selected.task,
+        cwd,
+        aiConfig: pendingAiConfig,
+        onChunk: (chunk) => process.stdout.write(chunk),
+      })
+
+      console.log('\n')
+
+      const files = detectFilesInOutput(res.content)
+      if (files.length > 0) {
+        const sv = await p.confirm({
+          message: `Sauvegarder ${files.length} fichier(s) dans le projet ?`,
+          initialValue: true,
+        })
+        if (!p.isCancel(sv) && sv) {
+          for (const f of files) {
+            await fs.ensureDir(path.dirname(path.join(cwd, f.filename)))
+            await fs.writeFile(path.join(cwd, f.filename), f.content, 'utf-8')
+            console.log(`    ${chalk.green('✓')} ${f.filename}`)
+          }
+        }
+      } else {
+        // Sauvegarder la réponse si c'est des specs/analyse
+        const saveDoc = await p.confirm({
+          message: 'Sauvegarder cette réponse dans docs/ ?',
+          initialValue: true,
+        })
+        if (!p.isCancel(saveDoc) && saveDoc) {
+          await fs.ensureDir(path.join(cwd, 'docs'))
+          const filename = `${selected.agentId}-${new Date().toISOString().split('T')[0]}.md`
+          await fs.writeFile(path.join(cwd, 'docs', filename), res.content, 'utf-8')
+          p.log.success(chalk.green(`Sauvegardé dans docs/${filename}`))
+        }
+      }
+    } catch (err) {
+      console.error(chalk.red(`\n  Erreur IA : ${(err as Error).message}`))
+    }
+
+    console.log()
+    p.log.success('Pour continuer : ' + chalk.cyan('kuate next'))
+    console.log()
+  }
 }
