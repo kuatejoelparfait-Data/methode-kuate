@@ -13,6 +13,7 @@ import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
 import { projetCommand } from './commands/projet.js'
+import { devCommand } from './commands/dev.js'
 
 const VERSION = '1.3.0'
 const cwd = process.cwd()
@@ -144,8 +145,13 @@ program
   .action(() => nextCommand(cwd))
 
 program
+  .command('dev')
+  .description('Lance le projet en local : install, tests, serveur, terminal agents')
+  .action(() => devCommand(cwd))
+
+program
   .command('projet')
-  .description('Pipeline complet K → U → A → T — specs, backlog, architecture, code')
+  .description('Pipeline complet K → U → A → T → E — specs, backlog, architecture, code, evaluation')
   .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T|E)', undefined)
   .action((opts: { from?: string }) => {
     const validStarts = ['K', 'U', 'A', 'T', 'E']

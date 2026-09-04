@@ -2,8 +2,8 @@
 
 **Auteur : KUATE JOEL PARFAIT**
 
-> Tutoriel 5/5 — Phase E : l'agent tech-lead évalue la qualité du projet et produit le plan de tests.
-> Précédent : [Phase T — Génération de code](04-PHASE-T.md)
+> Tutoriel 5/6 — Phase E : l'agent tech-lead évalue la qualité du projet et produit le plan de tests.
+> Précédent : [Phase T — Génération de code](04-PHASE-T.md) | Suivant : [Phase Dev — Application locale](06-PHASE-DEV.md)
 
 ---
 
@@ -220,6 +220,10 @@ kuate run --agent tech-lead --task "Revois la sécurité de src/routes/auth.ts"
 kuate next                # suggestions IA pour la prochaine action
 kuate memory show         # voir le journal du projet
 ```
+
+---
+
+**Prochain tutoriel :** [Phase Dev — Application locale](06-PHASE-DEV.md)
 
 ---
 

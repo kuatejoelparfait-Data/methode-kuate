@@ -808,6 +808,28 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
     console.log(chalk.dim('  Phase E disponible :') + ' ' + chalk.cyan('kuate projet --from E'))
   } else {
     console.log(chalk.bold.hex('#8B3500')('  Pipeline complet K U A T E termine.'))
+    console.log()
+
+    // Proposer de lancer l'application en local
+    const launchDev = await p.select<{ value: string; label: string; hint?: string }[], string>({
+      message: 'Lancer l\'application en local ?',
+      options: [
+        {
+          value: 'dev',
+          label: chalk.bold.green('Oui — install, tests, serveur, terminal agents'),
+          hint: 'kuate dev : tout en une commande',
+        },
+        {
+          value: 'skip',
+          label: chalk.dim('Non — terminer ici'),
+        },
+      ],
+    })
+
+    if (!p.isCancel(launchDev) && launchDev === 'dev') {
+      const { devCommand } = await import('./dev.js')
+      await devCommand(cwd)
+    }
   }
   console.log()
 }

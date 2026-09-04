@@ -2,15 +2,15 @@
 
 **Auteur : KUATE JOEL PARFAIT**
 
-> 5 tutoriels connectés, un par phase. Suivez-les dans l'ordre ou sautez directement à la phase qui vous intéresse.
+> 6 tutoriels connectés, un par phase. Suivez-les dans l'ordre ou sautez directement à la phase qui vous intéresse.
 
 ---
 
 ## Parcours complet
 
 ```
-Démarrage  →  Phase K  →  Phase U  →  Phase A  →  Phase T  →  Phase E
-   5 min       specs      backlog    architecture    code       qualité
+Demarrage → Phase K → Phase U → Phase A → Phase T → Phase E → Phase Dev
+  5 min      specs    backlog   archi      code      qualite   appli locale
 ```
 
 | # | Tutoriel | Durée | Livrable |
@@ -21,6 +21,7 @@ Démarrage  →  Phase K  →  Phase U  →  Phase A  →  Phase T  →  Phase E
 | 3 | [Phase A — Architecture](03-PHASE-A.md) | 3 min | `docs/architecture.md` |
 | 4 | [Phase T — Génération de code](04-PHASE-T.md) | 5 min | `src/` code source |
 | 5 | [Phase E — Évaluation](05-PHASE-E.md) | 3 min | `docs/evaluation.md` |
+| 6 | [Phase Dev — Application locale](06-PHASE-DEV.md) | 5 min | Appli sur localhost |
 
 ---
 
@@ -28,9 +29,8 @@ Démarrage  →  Phase K  →  Phase U  →  Phase A  →  Phase T  →  Phase E
 
 ```bash
 kuate projet
+# Pipeline K→U→A→T→E complet, puis propose kuate dev
 ```
-
-Lance le pipeline K→U→A→T→E complet avec suivi de phase.
 
 ---
 
@@ -42,7 +42,15 @@ kuate projet --from U   # backlog
 kuate projet --from A   # architecture
 kuate projet --from T   # code
 kuate projet --from E   # evaluation
+kuate dev               # application locale (apres Phase T)
 ```
+
+---
+
+## Référence complète
+
+Pour toutes les commandes, workflows et analyse de navigation :
+[docs/REFERENCE-COMPLETE.md](../REFERENCE-COMPLETE.md)
 
 ---
 
