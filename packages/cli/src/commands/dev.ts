@@ -151,6 +151,101 @@ function guessSourceFile(testName: string, error: string): string | undefined {
   return undefined
 }
 
+// ── Sanitizer package.json ───────────────────────────────────────────────────
+
+/**
+ * Corrige les versions npm invalides générées par les LLM.
+ * "^latest" → "latest"  |  "~latest" → "latest"  |  "^next" → "next"
+ * Versions connues pour les packages courants.
+ */
+const KNOWN_VERSIONS: Record<string, string> = {
+  express: '^4.18.2',
+  fastify: '^4.26.0',
+  koa: '^2.15.0',
+  hapi: '^21.3.0',
+  nestjs: '^10.0.0',
+  '@nestjs/core': '^10.0.0',
+  '@nestjs/common': '^10.0.0',
+  '@nestjs/platform-express': '^10.0.0',
+  prisma: '^5.10.0',
+  '@prisma/client': '^5.10.0',
+  typescript: '^5.3.0',
+  ts_node: '^10.9.2',
+  'ts-node': '^10.9.2',
+  'tsx': '^4.7.0',
+  jest: '^29.7.0',
+  vitest: '^1.3.0',
+  mocha: '^10.3.0',
+  '@types/node': '^20.11.0',
+  '@types/express': '^4.17.21',
+  '@types/jest': '^29.5.12',
+  cors: '^2.8.5',
+  helmet: '^7.1.0',
+  dotenv: '^16.4.4',
+  bcrypt: '^5.1.1',
+  jsonwebtoken: '^9.0.2',
+  zod: '^3.22.4',
+  axios: '^1.6.7',
+  mongoose: '^8.2.0',
+  sequelize: '^6.37.1',
+  knex: '^3.1.0',
+  'express-rate-limit': '^7.2.0',
+  'socket.io': '^4.7.4',
+  'next': '^14.1.0',
+  react: '^18.2.0',
+  'react-dom': '^18.2.0',
+  vue: '^3.4.0',
+  vite: '^5.1.0',
+  tailwindcss: '^3.4.1',
+  winston: '^3.11.0',
+  pino: '^8.19.0',
+  nodemailer: '^6.9.9',
+  multer: '^1.4.5-lts.1',
+  puppeteer: '^22.3.0',
+  stripe: '^14.21.0',
+  resend: '^3.2.0',
+}
+
+function sanitizePackageJson(pkgPath: string): { fixed: boolean; changes: string[] } {
+  const changes: string[] = []
+  try {
+    const raw = fs.readFileSync(pkgPath, 'utf-8')
+    const pkg = JSON.parse(raw) as Record<string, unknown>
+
+    const fixDeps = (deps: Record<string, string> | undefined, section: string) => {
+      if (!deps) return
+      for (const [name, version] of Object.entries(deps)) {
+        const str = String(version)
+        // "^latest", "~latest", "^next", "~next" etc.
+        if (/^[~^](?:latest|next|alpha|beta|rc|canary)$/.test(str)) {
+          const tag = str.replace(/^[~^]/, '')
+          // Utiliser version connue ou juste le tag sans préfixe
+          const fixed = KNOWN_VERSIONS[name] ?? tag
+          deps[name] = fixed
+          changes.push(`${section}.${name}: "${str}" → "${fixed}"`)
+        }
+        // "latest" seul est valide, ne pas modifier
+        // "^0.0.0" ou version vide → version connue si disponible
+        if ((str === '' || str === '*') && KNOWN_VERSIONS[name]) {
+          deps[name] = KNOWN_VERSIONS[name]
+          changes.push(`${section}.${name}: "${str}" → "${KNOWN_VERSIONS[name]}"`)
+        }
+      }
+    }
+
+    fixDeps(pkg.dependencies as Record<string, string>, 'dependencies')
+    fixDeps(pkg.devDependencies as Record<string, string>, 'devDependencies')
+    fixDeps(pkg.peerDependencies as Record<string, string>, 'peerDependencies')
+
+    if (changes.length > 0) {
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8')
+    }
+    return { fixed: changes.length > 0, changes }
+  } catch {
+    return { fixed: false, changes: [] }
+  }
+}
+
 // ── Install ───────────────────────────────────────────────────────────────────
 
 async function runInstall(cwd: string, pm: string): Promise<boolean> {
@@ -741,14 +836,23 @@ Génère TOUS ces fichiers de configuration (un bloc de code par fichier) :
 3. .env.example — toutes les variables d'environnement (sans valeurs sensibles)
 4. .gitignore — node_modules, dist, .env, etc.
 
+RÈGLES ABSOLUES pour package.json :
+- Utilise des VERSIONS RÉELLES comme "^4.18.2", "^3.0.0", "^5.0.0"
+- JAMAIS "^latest" ou "~latest" — npm refuse ces formes invalides
+- JAMAIS de préfixe ^ ou ~ devant un tag (latest, next, etc.)
+- Exemples corrects : "express": "^4.18.2", "typescript": "^5.3.0", "jest": "^29.7.0"
+- Exemples INTERDITS : "express": "^latest", "typescript": "~latest"
+
 Format obligatoire pour chaque fichier :
 \`\`\`json
 // package.json
-{...}
-\`\`\`
-\`\`\`typescript
-// tsconfig.json
-{...}
+{
+  "name": "...",
+  "version": "1.0.0",
+  "scripts": { "dev": "...", "build": "...", "test": "jest", "start": "..." },
+  "dependencies": { "express": "^4.18.2" },
+  "devDependencies": { "typescript": "^5.3.0", "jest": "^29.7.0" }
+}
 \`\`\`
 
 Un bloc par fichier. Le nom du fichier TOUJOURS en premiere ligne en commentaire.`
@@ -808,7 +912,27 @@ Un bloc par fichier. Le nom du fichier TOUJOURS en premiere ligne en commentaire
         return
       }
 
+      // Sanitiser les versions invalides generees par l'IA
+      const { fixed, changes } = sanitizePackageJson(path.join(cwd, 'package.json'))
+      if (fixed) {
+        console.log(chalk.yellow(`  Versions corrigees dans package.json (${changes.length}) :`))
+        for (const c of changes.slice(0, 6)) console.log(chalk.dim(`    ${c}`))
+      }
+
       console.log()
+    }
+  }
+
+  // Sanitiser package.json existant avant install (peut avoir ete genere par Phase T)
+  {
+    const pkgPath = path.join(cwd, 'package.json')
+    if (fs.existsSync(pkgPath)) {
+      const { fixed, changes } = sanitizePackageJson(pkgPath)
+      if (fixed) {
+        console.log(chalk.yellow(`  Versions npm invalides corrigees (${changes.length}) :`))
+        for (const c of changes.slice(0, 6)) console.log(chalk.dim(`    ${c}`))
+        console.log()
+      }
     }
   }
 
