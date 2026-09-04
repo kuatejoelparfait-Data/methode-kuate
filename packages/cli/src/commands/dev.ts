@@ -614,13 +614,42 @@ export async function devCommand(cwd: string): Promise<void> {
   }
 
   // Verifier qu'il y a du code
-  const hasSrc = fs.existsSync(path.join(cwd, 'src')) ||
-                 fs.existsSync(path.join(cwd, 'app')) ||
-                 fs.existsSync(path.join(cwd, 'lib'))
+  const srcCandidates = ['src', 'app', 'lib', 'server', 'api']
+  const hasSrc = srcCandidates.some(d => fs.existsSync(path.join(cwd, d)))
 
   if (!hasSrc) {
-    p.log.warn('Aucun dossier src/ detecte. Lancez kuate projet (Phase T) pour generer le code.')
-    return
+    console.log()
+    console.log(chalk.bold.red('  Aucun code source detecte.'))
+    console.log(chalk.dim('  Dossiers recherches : ' + srcCandidates.join(', ')))
+    console.log()
+
+    const doPhaseT = await p.select<{ value: string; label: string; hint?: string }[], string>({
+      message: 'Code non genere. Que faire ?',
+      options: [
+        {
+          value: 'run',
+          label: chalk.bold.green('Lancer Phase T maintenant — generer le code'),
+          hint: 'kuate projet --from T',
+        },
+        {
+          value: 'skip',
+          label: chalk.dim('Annuler'),
+        },
+      ],
+    })
+
+    if (p.isCancel(doPhaseT) || doPhaseT === 'skip') return
+
+    // Lancer Phase T
+    const { projetCommand } = await import('./projet.js')
+    await projetCommand(cwd, 'T')
+
+    // Re-verifier après
+    const nowHasSrc = srcCandidates.some(d => fs.existsSync(path.join(cwd, d)))
+    if (!nowHasSrc) {
+      p.log.warn('Phase T n\'a pas cree de dossier src/. Verifiez les logs ci-dessus.')
+      return
+    }
   }
 
   console.log()

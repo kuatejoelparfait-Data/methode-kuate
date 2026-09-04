@@ -639,12 +639,19 @@ async function runPhaseT(
   const bar = chalk.hex(color)('='.repeat(30))
   console.log()
   console.log(`  ${bar}`)
+  if (allGeneratedFiles.length === 0) {
+    console.log(chalk.bold.red('  Phase T : aucun fichier genere.'))
+    console.log(chalk.dim('  Causes possibles :'))
+    console.log(chalk.dim('  - L\'agent n\'a pas utilise le format de fichier obligatoire'))
+    console.log(chalk.dim('  - Le contexte docs/ est insuffisant pour planifier les taches'))
+    console.log(chalk.dim('  Relancez : ') + chalk.cyan('kuate projet --from T'))
+    console.log()
+    return   // signale l'echec au caller via allGeneratedFiles.length
+  }
   console.log(chalk.bold.hex(color)('  Phase T terminee'))
   console.log(chalk.green(`  ${tasks.length} taches  ${allGeneratedFiles.length} fichier(s) genere(s)`))
-  if (allGeneratedFiles.length > 0) {
-    for (const f of allGeneratedFiles.slice(0, 8)) console.log(`    ${f}`)
-    if (allGeneratedFiles.length > 8) console.log(chalk.dim(`    ... et ${allGeneratedFiles.length - 8} autres`))
-  }
+  for (const f of allGeneratedFiles.slice(0, 8)) console.log(`    ${f}`)
+  if (allGeneratedFiles.length > 8) console.log(chalk.dim(`    ... et ${allGeneratedFiles.length - 8} autres`))
   console.log()
   console.log()
 }
@@ -696,12 +703,19 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
     }
   }
 
+  // Vérifier si le code source existe (Phase T réellement terminée)
+  const hasSrcDir = ['src', 'app', 'lib', 'server', 'api'].some(d =>
+    fs.existsSync(path.join(cwd, d))
+  )
+
   // Déterminer phase de départ
   const startPhase = fromPhase ?? ((): PipelinePhase => {
     if (!done.has('K')) return 'K'
     if (!done.has('U')) return 'U'
     if (!done.has('A')) return 'A'
-    if (!done.has('T')) return 'T'
+    // Phase T non faite OU docs existent mais pas de code
+    if (!done.has('T') || !hasSrcDir) return 'T'
+    if (!done.has('E')) return 'E'
     return 'E'
   })()
 
@@ -721,6 +735,18 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
     if (currentPhase === 'T') {
       // Phase T = code generation
       await runPhaseT(cwd, config, aiConfig, doneDocs)
+
+      // Vérifier que du code a été généré avant de continuer
+      const hasSrc = ['src', 'app', 'lib', 'server', 'api'].some(d =>
+        fs.existsSync(path.join(cwd, d))
+      )
+      if (!hasSrc) {
+        // Phase T échouée — ne pas marquer done, ne pas proposer Phase E
+        console.log(chalk.yellow('  Phase T incomplete — src/ absent.'))
+        console.log(chalk.dim('  Relancez avec : ') + chalk.cyan('kuate projet --from T'))
+        break
+      }
+
       done.add('T')
 
       // Proposer de continuer vers Phase E
