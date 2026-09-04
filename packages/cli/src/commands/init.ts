@@ -186,7 +186,7 @@ export async function initCommand(cwd: string): Promise<void> {
   pixelBanner()
 
   if (isKuateProject(cwd)) {
-    // ── Projet existant — menu de reprise ────────────────────────────────────
+    // ── Projet existant — menu de reprise (boucle avec retour) ───────────────
     const existingConfig = await readConfig(cwd)
     initI18n(existingConfig.lang)
 
@@ -199,7 +199,7 @@ export async function initCommand(cwd: string): Promise<void> {
     if (aiConfig) {
       console.log(chalk.dim(`  IA     : ${PROVIDER_LABELS[aiConfig.provider]} / ${aiConfig.model}`))
     } else {
-      console.log(chalk.yellow('  IA     : non configurée — kuate config ai'))
+      console.log(chalk.yellow('  IA     : non configuree — kuate config ai'))
     }
     console.log()
 
@@ -209,162 +209,173 @@ export async function initCommand(cwd: string): Promise<void> {
     const RESUME_PHASE   = 'phase'
     const RESUME_CONFIG  = 'config'
     const RESUME_REINIT  = 'reinit'
+    const RESUME_QUIT    = 'quit'
 
-    const resumeChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
-      message: 'Ce projet est déjà initialisé. Que voulez-vous faire ?',
-      options: [
-        {
-          value: RESUME_NEXT,
-          label: chalk.bold('🧠 Continuer avec l\'assistant IA'),
-          hint: 'Suggestions de prochaines tâches basées sur l\'état du projet',
-        },
-        {
-          value: RESUME_SPECS,
-          label: '📋 Générer / mettre à jour les specs',
-          hint: 'business-analyst rédige ou complète les spécifications',
-        },
-        {
-          value: RESUME_MEMORY,
-          label: '📝 Mettre à jour la mémoire du projet',
-          hint: 'kuate memory seed — enrichit le contexte pour de meilleures suggestions',
-        },
-        {
-          value: RESUME_PHASE,
-          label: '▶  Lancer une session par phase',
-          hint: 'kuate phase K | U | A | T | E',
-        },
-        {
-          value: RESUME_CONFIG,
-          label: chalk.dim('⚙  Voir la configuration'),
-          hint: 'kuate config show',
-        },
-        {
-          value: RESUME_REINIT,
-          label: chalk.dim('↺  Réinitialiser ce projet'),
-          hint: 'Relance le wizard complet — remplace la config existante',
-        },
-      ],
-    })
-
-    if (p.isCancel(resumeChoice)) { p.cancel('Annulé'); return }
-
-    if (resumeChoice === RESUME_NEXT) {
-      const { nextCommand } = await import('./next.js')
-      await nextCommand(cwd)
-      return
-    }
-
-    if (resumeChoice === RESUME_MEMORY) {
-      const { memorySeedCommand } = await import('./memory.js')
-      await memorySeedCommand(cwd)
-      return
-    }
-
-    if (resumeChoice === RESUME_CONFIG) {
-      const { configShowCommand } = await import('./config.js')
-      await configShowCommand(cwd)
-      return
-    }
-
-    if (resumeChoice === RESUME_PHASE) {
-      const phases = ['K', 'U', 'A', 'T', 'E'] as const
-      const phaseColors: Record<string, string> = {
-        K: '#FFB300', U: '#FF8C00', A: '#E06000', T: '#C04800', E: '#8B3500',
-      }
-      const phaseDescs: Record<string, string> = {
-        K: 'Découvrir & Contextualiser',
-        U: 'Agréger & Synthétiser',
-        A: 'Concevoir & Structurer',
-        T: 'Exécuter & Restructurer',
-        E: 'Évaluer & Valider',
-      }
-      const phaseChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
-        message: 'Quelle phase ?',
-        options: phases.map(ph => {
-          const names: Record<string, string> = { K: 'Knower', U: 'Unifier', A: 'Architect', T: 'Transformer', E: 'Evaluator' }
-          return {
-            value: ph,
-            label: chalk.bold.hex(phaseColors[ph])(`[ ${ph} ]`) + '  ' + names[ph],
-            hint: phaseDescs[ph],
-          }
-        }),
+    let resumeLoop = true
+    while (resumeLoop) {
+      const resumeChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: 'Ce projet est deja initialise. Que voulez-vous faire ?',
+        options: [
+          {
+            value: RESUME_NEXT,
+            label: chalk.bold('Continuer avec l\'assistant IA'),
+            hint: 'Suggestions de prochaines taches basees sur l\'etat du projet',
+          },
+          {
+            value: RESUME_SPECS,
+            label: 'Generer / mettre a jour les specs',
+            hint: 'business-analyst redige ou complete les specifications',
+          },
+          {
+            value: RESUME_MEMORY,
+            label: 'Mettre a jour la memoire du projet',
+            hint: 'kuate memory seed — enrichit le contexte pour de meilleures suggestions',
+          },
+          {
+            value: RESUME_PHASE,
+            label: 'Lancer une session par phase',
+            hint: 'kuate phase K | U | A | T | E',
+          },
+          {
+            value: RESUME_CONFIG,
+            label: chalk.dim('Voir la configuration'),
+            hint: 'kuate config show',
+          },
+          {
+            value: RESUME_REINIT,
+            label: chalk.dim('Reinitialiser ce projet'),
+            hint: 'Relance le wizard complet — remplace la config existante',
+          },
+          {
+            value: RESUME_QUIT,
+            label: chalk.dim('Quitter'),
+          },
+        ],
       })
-      if (!p.isCancel(phaseChoice)) {
-        const { phaseCommand } = await import('./phase.js')
-        await phaseCommand(cwd, String(phaseChoice) as 'K' | 'U' | 'A' | 'T' | 'E')
-      }
-      return
-    }
 
-    if (resumeChoice === RESUME_SPECS) {
-      if (!aiConfig) {
-        p.log.warn('IA non configurée. Lancez : kuate config ai')
+      if (p.isCancel(resumeChoice) || resumeChoice === RESUME_QUIT) { p.cancel('Annule'); return }
+
+      if (resumeChoice === RESUME_NEXT) {
+        const { nextCommand } = await import('./next.js')
+        await nextCommand(cwd)
         return
       }
-      const allInstalled = [...AGENTS_DEV, ...AGENTS_BUSINESS, ...AGENTS_CONTENT, ...AGENTS_EDUCATION]
-      const agentsDir = path.join(cwd, '.kuate', 'agents')
-      const hasAnalyst = allInstalled.some(
-        a => a.id === 'business-analyst' && fs.existsSync(path.join(agentsDir, 'business-analyst.md'))
-      )
-      const agentId = hasAnalyst ? 'business-analyst' : (existingConfig.agents?.[0] ?? 'dev-senior')
 
-      const taskSpec = existingConfig.lang === 'fr'
-        ? `Rédige un document de spécifications complet pour le projet "${existingConfig.project}" (méthode ${existingConfig.method}). \
-Inclus : objectif, utilisateurs cibles, user stories, critères d'acceptation, contraintes, \
-et le découpage recommandé en phases KUATE (K/U/A/T/E). Sois concret et actionnable.`
-        : `Write a complete specification document for project "${existingConfig.project}" (${existingConfig.method} method). \
+      if (resumeChoice === RESUME_MEMORY) {
+        const { memorySeedCommand } = await import('./memory.js')
+        await memorySeedCommand(cwd)
+        return
+      }
+
+      if (resumeChoice === RESUME_CONFIG) {
+        const { configShowCommand } = await import('./config.js')
+        await configShowCommand(cwd)
+        // retour au menu apres affichage config
+        continue
+      }
+
+      if (resumeChoice === RESUME_PHASE) {
+        const phases = ['K', 'U', 'A', 'T', 'E'] as const
+        const phaseColors: Record<string, string> = {
+          K: '#FFB300', U: '#FF8C00', A: '#E06000', T: '#C04800', E: '#8B3500',
+        }
+        const phaseDescs: Record<string, string> = {
+          K: 'Decouvrir & Contextualiser',
+          U: 'Agreger & Synthetiser',
+          A: 'Concevoir & Structurer',
+          T: 'Executer & Restructurer',
+          E: 'Evaluer & Valider',
+        }
+        const phaseChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
+          message: 'Quelle phase ?',
+          options: [
+            ...phases.map(ph => {
+              const names: Record<string, string> = { K: 'Knower', U: 'Unifier', A: 'Architect', T: 'Transformer', E: 'Evaluator' }
+              return {
+                value: ph,
+                label: chalk.bold.hex(phaseColors[ph])(`[ ${ph} ]`) + '  ' + names[ph],
+                hint: phaseDescs[ph],
+              }
+            }),
+            { value: BACK, label: chalk.dim('Retour') },
+          ],
+        })
+        if (p.isCancel(phaseChoice) || phaseChoice === BACK) continue  // retour menu resume
+        const { phaseCommand } = await import('./phase.js')
+        await phaseCommand(cwd, String(phaseChoice) as 'K' | 'U' | 'A' | 'T' | 'E')
+        // apres phase terminee, retour au menu
+        continue
+      }
+
+      if (resumeChoice === RESUME_SPECS) {
+        if (!aiConfig) {
+          p.log.warn('IA non configuree. Lancez : kuate config ai')
+          continue
+        }
+        const allInstalled = [...AGENTS_DEV, ...AGENTS_BUSINESS, ...AGENTS_CONTENT, ...AGENTS_EDUCATION]
+        const agentsDir = path.join(cwd, '.kuate', 'agents')
+        const hasAnalyst = allInstalled.some(
+          a => a.id === 'business-analyst' && fs.existsSync(path.join(agentsDir, 'business-analyst.md'))
+        )
+        const agentId = hasAnalyst ? 'business-analyst' : (existingConfig.agents?.[0] ?? 'dev-senior')
+
+        const taskSpec = existingConfig.lang === 'fr'
+          ? `Redige un document de specifications complet pour le projet "${existingConfig.project}" (methode ${existingConfig.method}). \
+Inclus : objectif, utilisateurs cibles, user stories, criteres d'acceptation, contraintes, \
+et le decoupage recommande en phases KUATE (K/U/A/T/E). Sois concret et actionnable.`
+          : `Write a complete specification document for project "${existingConfig.project}" (${existingConfig.method} method). \
 Include: objective, target users, user stories, acceptance criteria, constraints, \
 and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
 
-      console.log()
-      console.log(chalk.bold.hex('#FFB300')(`  ◆ ${agentId} — Spécifications`))
-      console.log(chalk.dim('  ' + '─'.repeat(55)))
-      console.log()
+        console.log()
+        console.log(chalk.bold.hex('#FFB300')(`  ${agentId} — Specifications`))
+        console.log(chalk.dim('  ' + '─'.repeat(55)))
+        console.log()
 
-      try {
-        const res = await runAgent({
-          agentId,
-          task: taskSpec,
-          cwd,
-          aiConfig,
-          onChunk: (chunk) => process.stdout.write(chunk),
-        })
-        console.log('\n')
+        try {
+          const res = await runAgent({
+            agentId,
+            task: taskSpec,
+            cwd,
+            aiConfig,
+            onChunk: (chunk) => process.stdout.write(chunk),
+          })
+          console.log('\n')
 
-        const filesFound = detectFilesInOutput(res.content)
-        if (filesFound.length > 0) {
-          for (const f of filesFound) {
-            await fs.ensureDir(path.dirname(path.join(cwd, f.filename)))
-            await fs.writeFile(path.join(cwd, f.filename), f.content, 'utf-8')
-            console.log(`    ${chalk.green('✓')} ${f.filename}`)
+          const filesFound = detectFilesInOutput(res.content)
+          if (filesFound.length > 0) {
+            for (const f of filesFound) {
+              await fs.ensureDir(path.dirname(path.join(cwd, f.filename)))
+              await fs.writeFile(path.join(cwd, f.filename), f.content, 'utf-8')
+              console.log(`    ${chalk.green(f.filename)}`)
+            }
+          } else {
+            const sv = await p.confirm({ message: 'Sauvegarder dans docs/specs.md ?', initialValue: true })
+            if (!p.isCancel(sv) && sv) {
+              await fs.ensureDir(path.join(cwd, 'docs'))
+              await fs.writeFile(path.join(cwd, 'docs', 'specs.md'), res.content, 'utf-8')
+              p.log.success(chalk.green('docs/specs.md cree'))
+            }
           }
-        } else {
-          const sv = await p.confirm({ message: 'Sauvegarder dans docs/specs.md ?', initialValue: true })
-          if (!p.isCancel(sv) && sv) {
-            await fs.ensureDir(path.join(cwd, 'docs'))
-            await fs.writeFile(path.join(cwd, 'docs', 'specs.md'), res.content, 'utf-8')
-            p.log.success(chalk.green('docs/specs.md créé'))
-          }
+        } catch (err) {
+          console.error(chalk.red(`\n  Erreur IA : ${(err as Error).message}`))
         }
-      } catch (err) {
-        console.error(chalk.red(`\n  Erreur IA : ${(err as Error).message}`))
+        console.log()
+        p.log.success('Pour continuer : ' + chalk.cyan('kuate next'))
+        continue
       }
-      console.log()
-      p.log.success('Pour continuer : ' + chalk.cyan('kuate next'))
-      return
-    }
 
-    if (resumeChoice === RESUME_REINIT) {
-      const confirm = await p.confirm({
-        message: chalk.yellow('Réinitialiser écrasera les agents et la config. Continuer ?'),
-        initialValue: false,
-      })
-      if (p.isCancel(confirm) || !confirm) { p.cancel('Annulé'); return }
-      // Supprimer .kuate/config.yaml pour permettre le re-wizard
-      await fs.remove(path.join(cwd, '.kuate', 'config.yaml'))
-      p.log.success('Config supprimée — relancement du wizard...')
-      console.log()
-      return initCommand(cwd)
+      if (resumeChoice === RESUME_REINIT) {
+        const confirm = await p.confirm({
+          message: chalk.yellow('Reinitialiser ecrasera les agents et la config. Continuer ?'),
+          initialValue: false,
+        })
+        if (p.isCancel(confirm) || !confirm) { continue }  // retour au menu
+        await fs.remove(path.join(cwd, '.kuate', 'config.yaml'))
+        p.log.success('Config supprimee — relancement du wizard...')
+        console.log()
+        return initCommand(cwd)
+      }
     }
 
     return
@@ -486,13 +497,19 @@ and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
       )
       console.log()
 
-      const configureAi = await p.confirm({
+      const configureAi = await p.select<{ value: string; label: string }[], string>({
         message: `${stepLabel(5, TOTAL_STEPS)} Configurer un provider IA ?`,
-        initialValue: !!(existingAi && existingProvider),
+        initialValue: (existingAi && existingProvider) ? 'yes' : 'skip',
+        options: [
+          { value: 'yes',  label: 'Oui — configurer maintenant' },
+          { value: 'skip', label: 'Non — passer cette etape' },
+          { value: BACK,   label: chalk.dim('Retour') },
+        ],
       })
-      if (p.isCancel(configureAi)) { p.cancel('Annulé'); process.exit(0) }
+      if (p.isCancel(configureAi)) { p.cancel('Annule'); process.exit(0) }
+      if (configureAi === BACK) { step = 4; continue }
 
-      if (!configureAi) {
+      if (configureAi === 'skip') {
         pendingAiConfig = existingAi
         step = 6
         continue
@@ -571,8 +588,8 @@ and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
 
       if (aiReady) {
         modeOptions.push(
-          { value: 'describe', label: '✨ Décrire le projet', hint: 'L\'IA sélectionne les agents pertinents' },
-          { value: 'file',     label: '📄 Charger un cahier des charges', hint: 'README, specs, CDC en .md/.txt' },
+          { value: 'describe', label: 'Decrire le projet (IA)', hint: 'L\'IA selectionne les agents pertinents' },
+          { value: 'file',     label: 'Charger un cahier des charges', hint: 'README, specs, CDC en .md/.txt' },
         )
       }
       modeOptions.push(
@@ -679,30 +696,30 @@ and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
           console.log()
 
           const confirmAi = await p.select<{ value: string; label: string }[], string>({
-            message: 'Valider cette sélection ?',
+            message: 'Valider cette selection ?',
             options: [
               { value: 'yes',    label: chalk.green('Oui — utiliser ces agents') },
-              { value: 'manual', label: chalk.dim('Choisir manuellement à la place') },
               { value: 'retry',  label: chalk.dim('Relancer avec une autre description') },
+              { value: 'manual', label: chalk.dim('Choisir manuellement a la place') },
+              { value: BACK,     label: chalk.dim('Retour') },
             ],
           })
           if (p.isCancel(confirmAi)) { p.cancel('Annulé'); process.exit(0) }
 
           if (confirmAi === 'yes') {
-            // Extraire les domaines des agents sélectionnés
             const selectedDomains = new Set<DomainId>()
             for (const id of result.agentIds) {
               const agent = allAgents.find(a => a.id === id)
               if (agent) selectedDomains.add(agent.domain as DomainId)
             }
             domains = [...selectedDomains]
-            // Stocker les IDs pour filtrage précis plus tard
             ;(pendingAiConfig as AiConfig & { _selectedAgentIds?: string[] })._selectedAgentIds = result.agentIds
             step = 7  // exit loop
             continue
           } else if (confirmAi === 'retry') {
-            // Reboucle sur step 5 en mode describe
             continue
+          } else if (confirmAi === BACK) {
+            step = 5; continue
           }
           // 'manual' → tombe en mode manuel ci-dessous
         } catch (err) {
@@ -946,36 +963,54 @@ and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
   const LAUNCH_SPECS   = 'specs'
   const LAUNCH_SKIP    = 'skip'
 
-  const launch = await p.select<{ value: string; label: string; hint?: string }[], string>({
-    message: 'Choisissez une action :',
-    options: [
-      {
-        value: LAUNCH_NEXT,
-        label: chalk.bold('🧠 Laisser l\'IA me guider') + chalk.dim(' — recommandé'),
-        hint: 'L\'IA analyse le projet et propose les prochaines tâches concrètes',
-      },
-      {
-        value: LAUNCH_SPECS,
-        label: '📋 Créer les specs du projet maintenant',
-        hint: 'L\'agent business-analyst rédige les exigences et user stories',
-      },
-      {
-        value: LAUNCH_MEMORY,
-        label: '📝 Remplir le contexte projet (kuate memory seed)',
-        hint: 'Décris l\'architecture, les contraintes, le glossaire — enrichit les suggestions',
-      },
-      {
-        value: LAUNCH_SKIP,
-        label: chalk.dim('→ Continuer plus tard'),
-        hint: 'Tapez kuate next quand vous êtes prêt',
-      },
-    ],
-  })
+  let launchLoop = true
+  let launch = ''
 
-  if (p.isCancel(launch) || launch === LAUNCH_SKIP) {
-    console.log()
-    console.log(chalk.dim('  Quand vous êtes prêt : ') + chalk.cyan('kuate next'))
-    console.log()
+  while (launchLoop) {
+    const launchChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
+      message: 'Que voulez-vous faire maintenant ?',
+      options: [
+        {
+          value: 'projet',
+          label: chalk.bold('Lancer le pipeline complet K → U → A → T') + chalk.dim(' — recommande'),
+          hint: 'Specs → Backlog → Architecture → Code — les agents generent tout avec suivi de phase',
+        },
+        {
+          value: LAUNCH_NEXT,
+          label: 'Laisser l\'IA me guider (action suivante)',
+          hint: 'Suggestion de la prochaine tache selon l\'etat du projet',
+        },
+        {
+          value: LAUNCH_MEMORY,
+          label: 'Remplir le contexte projet d\'abord',
+          hint: 'kuate memory seed — enrichit les suggestions',
+        },
+        {
+          value: LAUNCH_SKIP,
+          label: chalk.dim('Continuer plus tard'),
+          hint: 'kuate projet | kuate next quand vous etes pret',
+        },
+      ],
+    })
+
+    if (p.isCancel(launchChoice) || launchChoice === LAUNCH_SKIP) {
+      console.log()
+      console.log(chalk.dim('  Quand vous etes pret : ') + chalk.cyan('kuate next'))
+      console.log()
+      return
+    }
+
+    launch = launchChoice
+    launchLoop = false
+  }
+
+  if (launch === LAUNCH_SKIP || !launch) {
+    return
+  }
+
+  if (launch === 'projet') {
+    const { projetCommand } = await import('./projet.js')
+    await projetCommand(cwd)
     return
   }
 
@@ -1120,22 +1155,32 @@ Use the project context available.`
 
     console.log()
     const actionChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
-      message: 'Première action recommandée — choisissez :',
+      message: 'Premiere action recommandee — choisissez :',
       options: [
         ...suggestions.slice(0, 6).map((s, i) => ({
           value: String(i),
           label: chalk.bold.hex(PHASE_COLORS[s.phase] ?? '#FF8C00')(`[${s.phase}]`) +
             '  ' + chalk.cyan(s.agentId.padEnd(26)) +
-            chalk.white(s.task.length > 50 ? s.task.slice(0, 50) + '…' : s.task),
+            chalk.white(s.task.length > 50 ? s.task.slice(0, 50) + '...' : s.task),
           hint: s.reason,
         })),
-        { value: 'skip', label: chalk.dim('→ Je lance kuate next plus tard') },
+        { value: 'skip',   label: chalk.dim('Continuer plus tard — kuate next') },
+        { value: BACK,     label: chalk.dim('Retour') },
       ],
     })
 
-    if (p.isCancel(actionChoice) || actionChoice === 'skip') {
+    if (p.isCancel(actionChoice) || actionChoice === BACK) {
+      // Retour : proposer le pipeline complet ou kuate next
       console.log()
-      console.log(chalk.dim('  Prêt quand vous êtes : ') + chalk.cyan('kuate next'))
+      console.log(chalk.dim('  Lancez le pipeline complet : ') + chalk.cyan('kuate projet'))
+      console.log(chalk.dim('  Ou l\'assistant IA :         ') + chalk.cyan('kuate next'))
+      console.log()
+      return
+    }
+
+    if (actionChoice === 'skip') {
+      console.log()
+      console.log(chalk.dim('  Pret quand vous etes : ') + chalk.cyan('kuate next'))
       console.log()
       return
     }

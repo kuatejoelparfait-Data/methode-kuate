@@ -12,6 +12,7 @@
  */
 
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 import fs from 'fs-extra'
 import chalk from 'chalk'
 import * as p from '@clack/prompts'
@@ -256,6 +257,122 @@ async function logMemory(cwd: string, phase: string, note: string): Promise<void
 
 // ── Export vers outil externe ─────────────────────────────────────────────────
 
+/** Lance un outil externe dans le terminal (prend le contrôle du process). */
+function spawnTool(cmd: string, args: string[], cwd: string): Promise<void> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: 'inherit',
+      shell: true,
+    })
+    child.on('error', (err) => {
+      console.log(chalk.yellow(`  Impossible de lancer ${cmd} : ${err.message}`))
+      resolve()
+    })
+    child.on('close', () => resolve())
+  })
+}
+
+/** Construit le contenu du fichier de contexte commun à tous les outils. */
+async function buildContextContent(
+  cwd: string,
+  config: Awaited<ReturnType<typeof readConfig>>,
+  generatedDocs: string[],
+): Promise<string> {
+  const date = new Date().toISOString().split('T')[0]
+  const parts: string[] = [
+    `# ${config.project} — Contexte KUATE`,
+    ``,
+    `> Genere par \`kuate projet\` le ${date}`,
+    `> Methodologie : ${config.method}  |  Langue : ${config.lang}`,
+    ``,
+    `## Mission`,
+    ``,
+    `Tu travailles sur le projet **${config.project}**.`,
+    `Tu as acces a toute la documentation generee par la methode KUATE (specs, backlog, architecture, evaluation).`,
+    `Ton role : implementer ce projet en te basant sur ces documents, en respectant l\'architecture definie.`,
+    ``,
+  ]
+
+  // Docs générés
+  for (const docPath of generatedDocs) {
+    const content = await loadDoc(cwd, docPath)
+    if (content.trim()) {
+      parts.push(`---`)
+      parts.push(``)
+      parts.push(`## ${docPath}`)
+      parts.push(``)
+      parts.push(content.slice(0, 5000))
+      parts.push(``)
+    }
+  }
+
+  // Agents installés
+  const agentsDir = path.join(cwd, '.kuate', 'agents')
+  const agentFiles = fs.existsSync(agentsDir)
+    ? (await fs.readdir(agentsDir)).filter(f => f.endsWith('.md'))
+    : []
+
+  if (agentFiles.length > 0) {
+    parts.push(`---`)
+    parts.push(``)
+    parts.push(`## Agents KUATE disponibles`)
+    parts.push(``)
+    parts.push(`Les prompts complets sont dans \`.kuate/agents/\`. Agents installes :`)
+    parts.push(agentFiles.map(f => `- \`${f.replace('.md', '')}\``).join('\n'))
+    parts.push(``)
+    parts.push(`Commandes agents :`)
+    parts.push(`- \`kuate exec <agentId> "<tache>"\` — executer un agent`)
+    parts.push(`- \`kuate dev\` — terminal interactif agents apres generation du code`)
+    parts.push(``)
+  }
+
+  // Conventions
+  parts.push(`---`)
+  parts.push(``)
+  parts.push(`## Conventions de developpement`)
+  parts.push(``)
+  parts.push(`- Format obligatoire pour chaque fichier cree :`)
+  parts.push(`  \`\`\`typescript`)
+  parts.push(`  // chemin/exact/fichier.ts`)
+  parts.push(`  ...code complet...`)
+  parts.push(`  \`\`\``)
+  parts.push(`- Un bloc de code par fichier, chemin en premiere ligne du bloc`)
+  parts.push(`- Ordre de developpement : infrastructure → donnees → API → UI → tests`)
+  parts.push(`- Apres generation : \`kuate dev\` pour installer, tester et lancer le serveur`)
+  parts.push(``)
+
+  return parts.join('\n')
+}
+
+/** Prompt d'analyse globale envoyé à l'outil externe au démarrage. */
+function buildAnalysisPrompt(project: string, method: string, lang: string): string {
+  return lang === 'fr'
+    ? `Analyse complete du projet "${project}" (methode ${method}).
+
+Lis et comprends tous les documents dans docs/ :
+- docs/specs.md — specifications, user stories, criteres d'acceptation
+- docs/backlog.md — backlog priorise, MVP, sprints
+- docs/architecture.md — stack technique, modele de donnees, API, securite
+- docs/evaluation.md — plan de tests, audit securite, retrospective
+
+Si du code existe dans src/ ou app/, analyse-le aussi.
+
+Ensuite :
+1. Confirme ta comprehension du projet en une phrase
+2. Identifie la prochaine tache prioritaire selon docs/backlog.md
+3. Commence a implementer en respectant docs/architecture.md
+4. Pour chaque fichier : commence le bloc par \`// chemin/du/fichier\`
+
+Commandes utiles disponibles : \`kuate dev\`, \`kuate exec <agent> "<tache>"\``
+    : `Full analysis of project "${project}" (${method} methodology).
+
+Read all docs in docs/ (specs.md, backlog.md, architecture.md, evaluation.md).
+Analyze existing code in src/ or app/ if present.
+Identify the next priority task from docs/backlog.md and start implementing.
+For each file: start the code block with \`// path/to/file\`.`
+}
+
 async function exportToExternalTool(
   cwd: string,
   config: Awaited<ReturnType<typeof readConfig>>,
@@ -267,22 +384,22 @@ async function exportToExternalTool(
       {
         value: 'claude-code',
         label: 'Claude Code',
-        hint: 'Genere .claude/AGENTS.md avec tout le contexte — lu automatiquement par claude',
+        hint: 'Genere CLAUDE.md + lance claude dans ce dossier',
       },
       {
         value: 'cursor',
         label: 'Cursor / Windsurf',
-        hint: 'Genere .cursor/rules/kuate.md avec contexte et instructions',
+        hint: 'Genere .cursor/rules/kuate.md + ouvre Cursor',
       },
       {
         value: 'codex',
         label: 'Codex CLI (OpenAI)',
-        hint: 'Genere KUATE-context.md avec prompt structure pour codex',
+        hint: 'Genere AGENTS.md + lance codex avec le contexte',
       },
       {
         value: 'generic',
         label: 'Autre (fichier universel)',
-        hint: 'Genere KUATE-context.md lisible par n\'importe quel LLM',
+        hint: 'Genere KUATE-context.md — copiez dans votre outil IA',
       },
       {
         value: '__BACK__',
@@ -293,93 +410,94 @@ async function exportToExternalTool(
 
   if (p.isCancel(toolChoice) || toolChoice === '__BACK__') return
 
-  // Assembler le contexte de tous les docs generés
-  const contextParts: string[] = [
-    `# Contexte projet KUATE — ${config.project}`,
-    ``,
-    `> Genere par \`kuate projet\` le ${new Date().toISOString().split('T')[0]}`,
-    `> Methodologie : ${config.method}  |  Langue : ${config.lang}`,
-    ``,
-  ]
-
-  for (const docPath of generatedDocs) {
-    const content = await loadDoc(cwd, docPath)
-    if (content.trim()) {
-      contextParts.push(`---`)
-      contextParts.push(``)
-      contextParts.push(`## ${docPath}`)
-      contextParts.push(``)
-      contextParts.push(content.slice(0, 5000))
-      contextParts.push(``)
-    }
-  }
-
-  // Agents installés
-  const agentsDir = path.join(cwd, '.kuate', 'agents')
-  const agentFiles = fs.existsSync(agentsDir)
-    ? (await fs.readdir(agentsDir)).filter(f => f.endsWith('.md'))
-    : []
-
-  if (agentFiles.length > 0) {
-    contextParts.push(`---`)
-    contextParts.push(``)
-    contextParts.push(`## Agents KUATE disponibles`)
-    contextParts.push(``)
-    contextParts.push(`Les prompts complets sont dans \`.kuate/agents/\`. Agents installés :`)
-    contextParts.push(agentFiles.map(f => `- ${f.replace('.md', '')}`).join('\n'))
-    contextParts.push(``)
-  }
-
-  // Instructions finales
-  contextParts.push(`---`)
-  contextParts.push(``)
-  contextParts.push(`## Instructions de developpement`)
-  contextParts.push(``)
-  contextParts.push(`Tu dois implémenter le projet "${config.project}" basé sur les spécifications ci-dessus.`)
-  contextParts.push(``)
-  contextParts.push(`Phase actuelle : **T — Transformer** (génération du code)`)
-  contextParts.push(``)
-  contextParts.push(`Ordre de développement (basé sur docs/backlog.md) :`)
-  contextParts.push(`1. Infrastructure & configuration`)
-  contextParts.push(`2. Modèles de données & base de données`)
-  contextParts.push(`3. API & logique métier`)
-  contextParts.push(`4. Interface utilisateur`)
-  contextParts.push(`5. Tests & documentation`)
-  contextParts.push(``)
-  contextParts.push(`Pour chaque fichier généré, utilise le format :`)
-  contextParts.push(`\`\`\`typescript`)
-  contextParts.push(`// chemin/du/fichier.ts`)
-  contextParts.push(`...code...`)
-  contextParts.push(`\`\`\``)
-
-  const contextContent = contextParts.join('\n')
+  const contextContent = await buildContextContent(cwd, config, generatedDocs)
+  const analysisPrompt = buildAnalysisPrompt(config.project, config.method, config.lang)
 
   if (toolChoice === 'claude-code') {
+    // CLAUDE.md = fichier lu automatiquement par Claude Code à l'ouverture
+    await fs.writeFile(path.join(cwd, 'CLAUDE.md'), contextContent, 'utf-8')
+    // Aussi dans .claude/ pour les sous-agents
     await fs.ensureDir(path.join(cwd, '.claude'))
     await fs.writeFile(path.join(cwd, '.claude', 'AGENTS.md'), contextContent, 'utf-8')
-    await fs.writeFile(path.join(cwd, 'KUATE-context.md'), contextContent, 'utf-8')
-    p.log.success(chalk.green('.claude/AGENTS.md genere — lu automatiquement par Claude Code'))
+
+    p.log.success(chalk.green('CLAUDE.md + .claude/AGENTS.md generes'))
     console.log()
-    console.log(chalk.dim('  Ouvrez ce dossier dans Claude Code :'))
-    console.log(chalk.cyan('  claude'))
+
+    const launchNow = await p.confirm({
+      message: 'Lancer Claude Code maintenant dans ce dossier ?',
+      initialValue: true,
+    })
+
+    if (!p.isCancel(launchNow) && launchNow) {
+      console.log()
+      console.log(chalk.dim('  Lancement de Claude Code...'))
+      console.log(chalk.dim(`  Prompt initial : "${analysisPrompt.slice(0, 80)}..."`))
+      console.log()
+      // claude --print pour analyse initiale, puis session interactive
+      await spawnTool('claude', ['--print', analysisPrompt], cwd)
+      console.log()
+      console.log(chalk.dim('  Pour continuer en interactif :'))
+      console.log(chalk.cyan('  claude'))
+    } else {
+      console.log(chalk.dim('  Lancez :'))
+      console.log(chalk.cyan('  claude'))
+      console.log(chalk.dim(`  Claude Code lira CLAUDE.md automatiquement.`))
+    }
 
   } else if (toolChoice === 'cursor') {
     await fs.ensureDir(path.join(cwd, '.cursor', 'rules'))
     const cursorContent = `---\ndescription: Contexte KUATE — ${config.project}\nalwaysApply: true\n---\n\n` + contextContent
     await fs.writeFile(path.join(cwd, '.cursor', 'rules', 'kuate.md'), cursorContent, 'utf-8')
-    p.log.success(chalk.green('.cursor/rules/kuate.md genere'))
-    console.log(chalk.dim('  Ouvrez Cursor dans ce dossier.'))
+
+    p.log.success(chalk.green('.cursor/rules/kuate.md genere — chargé automatiquement par Cursor'))
+    console.log()
+
+    const launchNow = await p.confirm({
+      message: 'Ouvrir Cursor dans ce dossier ?',
+      initialValue: true,
+    })
+
+    if (!p.isCancel(launchNow) && launchNow) {
+      console.log()
+      console.log(chalk.dim('  Ouverture de Cursor...'))
+      await spawnTool('cursor', ['.'], cwd)
+      console.log()
+      console.log(chalk.dim(`  Dans Cursor, collez ce prompt : "${analysisPrompt.slice(0, 60)}..."`))
+    } else {
+      console.log(chalk.dim('  Lancez :'))
+      console.log(chalk.cyan('  cursor .'))
+    }
 
   } else if (toolChoice === 'codex') {
-    await fs.writeFile(path.join(cwd, 'KUATE-context.md'), contextContent, 'utf-8')
-    p.log.success(chalk.green('KUATE-context.md genere'))
-    console.log(chalk.dim('  Utilisez Codex CLI :'))
-    console.log(chalk.cyan('  codex --context KUATE-context.md "Start with task 1: project setup"'))
+    // AGENTS.md = convention OpenAI Codex pour le contexte
+    await fs.writeFile(path.join(cwd, 'AGENTS.md'), contextContent, 'utf-8')
+
+    p.log.success(chalk.green('AGENTS.md genere — lu automatiquement par Codex CLI'))
+    console.log()
+
+    const launchNow = await p.confirm({
+      message: 'Lancer Codex CLI maintenant ?',
+      initialValue: true,
+    })
+
+    if (!p.isCancel(launchNow) && launchNow) {
+      console.log()
+      console.log(chalk.dim('  Lancement de Codex...'))
+      // codex lit AGENTS.md automatiquement ; on passe le prompt d'analyse
+      await spawnTool('codex', [analysisPrompt], cwd)
+    } else {
+      console.log(chalk.dim('  Lancez :'))
+      console.log(chalk.cyan(`  codex "${analysisPrompt.slice(0, 80)}..."`))
+    }
 
   } else {
     await fs.writeFile(path.join(cwd, 'KUATE-context.md'), contextContent, 'utf-8')
     p.log.success(chalk.green('KUATE-context.md genere'))
-    console.log(chalk.dim('  Ouvrez ce fichier et copiez-le dans votre outil IA.'))
+    console.log()
+    console.log(chalk.dim('  Copiez ce fichier dans votre outil IA.'))
+    console.log(chalk.dim('  Prompt de demarrage suggere :'))
+    console.log()
+    console.log(chalk.italic.dim(`  "${analysisPrompt.slice(0, 120)}..."`))
   }
 
   console.log()

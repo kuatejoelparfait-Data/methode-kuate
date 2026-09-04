@@ -106,7 +106,7 @@ export async function nextCommand(cwd: string): Promise<void> {
 
   console.log()
   console.log(
-    chalk.bold.hex('#FF8C00')(`  🧠 ${config.project}`) +
+    chalk.bold.hex('#FF8C00')(`  ${config.project}`) +
     chalk.dim(` · ${PROVIDER_LABELS[aiConfig.provider]} / ${aiConfig.model}`)
   )
   console.log(chalk.dim('  Analyse du projet pour suggérer la prochaine action...'))
@@ -174,8 +174,8 @@ export async function nextCommand(cwd: string): Promise<void> {
           hint: s.reason,
         }
       }),
-      { value: CUSTOM, label: chalk.dim('✏  Décrire une autre tâche manuellement') },
-      { value: QUIT,   label: chalk.dim('✕  Quitter') },
+      { value: CUSTOM, label: chalk.dim('Decrire une autre tache manuellement') },
+      { value: QUIT,   label: chalk.dim('Quitter') },
     ]
 
     const choice = await p.select<{ value: string; label: string; hint?: string }[], string>({
@@ -202,9 +202,10 @@ export async function nextCommand(cwd: string): Promise<void> {
               '  ' + a.id,
             hint: a.domain,
           })),
+          { value: '__BACK__', label: chalk.dim('Retour') },
         ],
       })
-      if (p.isCancel(agentChoice)) break
+      if (p.isCancel(agentChoice) || agentChoice === '__BACK__') continue
       agentId = String(agentChoice)
 
       const taskInput = await p.text({
@@ -291,9 +292,9 @@ export async function nextCommand(cwd: string): Promise<void> {
     const next = await p.select<{ value: string; label: string }[], string>({
       message: 'Que faire ensuite ?',
       options: [
-        { value: 'suggest', label: chalk.green('🧠 Nouvelles suggestions IA') },
-        { value: 'same',    label: chalk.cyan('↩  Choisir dans la même liste') },
-        { value: 'quit',    label: chalk.dim('✕  Terminer') },
+        { value: 'suggest', label: chalk.green('Nouvelles suggestions IA') },
+        { value: 'same',    label: chalk.cyan('Choisir dans la meme liste') },
+        { value: 'quit',    label: chalk.dim('Terminer') },
       ],
     })
 
