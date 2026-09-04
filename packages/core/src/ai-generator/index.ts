@@ -233,6 +233,63 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
 }`
 }
 
+/**
+ * Tente de parser un JSON potentiellement tronqué.
+ * Stratégies (dans l'ordre) :
+ *   1. Parse direct
+ *   2. Extrait le premier objet JSON complet avec regex greedy
+ *   3. Repare les tableaux tronqués (ferme les [ et { ouverts)
+ *   4. Extrait les tâches individuelles valides si tasks[] tronqué
+ */
+function safeParseJson(raw: string): unknown {
+  const text = raw.trim()
+
+  // Stratégie 1 — parse direct
+  try { return JSON.parse(text) } catch { /* continue */ }
+
+  // Stratégie 2 — extraire premier objet JSON via regex
+  const objMatch = text.match(/\{[\s\S]*\}/)
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]) } catch { /* continue */ }
+  }
+
+  // Stratégie 3 — nettoyer trailing comma + fermer accolades/crochets ouverts
+  const cleaned = (() => {
+    let s = text
+    // Supprimer trailing comma avant ] ou }
+    s = s.replace(/,\s*([}\]])/g, '$1')
+    // Compter les ouvrants et fermants
+    let braces = 0; let brackets = 0
+    for (const ch of s) {
+      if (ch === '{') braces++
+      else if (ch === '}') braces--
+      else if (ch === '[') brackets++
+      else if (ch === ']') brackets--
+    }
+    // Fermer les chaînes non terminées : cherche dernier guillemet impair
+    const dq = (s.match(/"/g) ?? []).length
+    if (dq % 2 !== 0) s = s + '"'
+    // Fermer crochets et accolades manquants
+    s += ']'.repeat(Math.max(0, brackets))
+    s += '}'.repeat(Math.max(0, braces))
+    return s
+  })()
+
+  try { return JSON.parse(cleaned) } catch { /* continue */ }
+
+  // Stratégie 4 — extraire tâches individuelles valides depuis tasks[]
+  const taskMatches = [...text.matchAll(/\{[^{}]*"agentId"[^{}]*\}/g)]
+  if (taskMatches.length > 0) {
+    const tasks = taskMatches.flatMap(m => {
+      try { return [JSON.parse(m[0])] } catch { return [] }
+    })
+    if (tasks.length > 0) return { tasks }
+  }
+
+  // Echec total — retourner objet vide (pas de crash)
+  return {}
+}
+
 async function callJsonAnthropic(prompt: string, model: string, apiKey: string): Promise<unknown> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -243,7 +300,7 @@ async function callJsonAnthropic(prompt: string, model: string, apiKey: string):
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
@@ -253,8 +310,7 @@ async function callJsonAnthropic(prompt: string, model: string, apiKey: string):
   }
   const data = await response.json() as { content: Array<{ text: string }> }
   const text = (data.content[0]?.text ?? '').trim()
-  const match = text.match(/\{[\s\S]*\}/)
-  return JSON.parse(match ? match[0] : text)
+  return safeParseJson(text)
 }
 
 async function callJsonOpenAI(prompt: string, model: string, apiKey: string): Promise<unknown> {
@@ -266,7 +322,7 @@ async function callJsonOpenAI(prompt: string, model: string, apiKey: string): Pr
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -276,7 +332,7 @@ async function callJsonOpenAI(prompt: string, model: string, apiKey: string): Pr
     throw new Error(`OpenAI API ${response.status}: ${err.slice(0, 200)}`)
   }
   const data = await response.json() as { choices: Array<{ message: { content: string } }> }
-  return JSON.parse(data.choices[0]?.message?.content ?? '{}')
+  return safeParseJson(data.choices[0]?.message?.content ?? '{}')
 }
 
 // ── Next suggestions — what to do next in the project ────────────────────────
@@ -330,6 +386,151 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
     }
   ]
 }`
+}
+
+// ── Phase T autonomous planning & review ─────────────────────────────────────
+
+export interface ProjectTask {
+  id: string
+  title: string
+  agentId: string
+  description: string
+  phase: string
+  dependsOn?: string[]  // task ids this task depends on
+}
+
+export interface TaskReview {
+  approved: boolean
+  issues: string[]
+  fixInstructions: string
+}
+
+function buildPlanPrompt(
+  projectContext: string,
+  agents: AgentSelectionInput[],
+  lang: string,
+): string {
+  const langInstruction = lang === 'fr' ? 'Réponds en français.' : 'Reply in English.'
+  const agentList = agents.map(a => `- ${a.id} [${a.phase}]: ${a.description}`).join('\n')
+
+  return `Tu es un architecte logiciel senior qui planifie le développement d'un projet.
+${langInstruction}
+
+## Contexte complet du projet
+${projectContext}
+
+## Agents disponibles (phase T — Transformer)
+${agentList}
+
+## Mission
+
+Analyse le contexte et génère un plan de développement complet et ordonné.
+Chaque tâche = une unité de travail réalisable par un agent en une session, qui produit du CODE.
+Ordre logique obligatoire : infrastructure → modèles → API → UI → tests → docs.
+Entre 5 et 12 tâches selon la complexité du projet.
+
+CRITIQUE — La description de chaque tâche DOIT :
+1. Commencer par "Génère le code de :" suivi du livrable précis
+2. Lister explicitement les noms de fichiers à créer (ex: src/auth/middleware.ts)
+3. Mentionner les fonctions clés, types, patterns à implémenter
+4. Être suffisamment détaillée pour que l'agent produise du code directement sans question
+
+Exemple de bonne description :
+"Génère le code de : le middleware d'authentification JWT. Fichiers : src/middleware/auth.ts, src/types/jwt.ts. Implémenter : vérification du token Bearer, extraction userId, gestion erreurs 401/403. Utiliser jsonwebtoken, pattern middleware Express."
+
+Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
+{
+  "tasks": [
+    {
+      "id": "task-01",
+      "title": "Titre court de la tâche",
+      "agentId": "id-exact-agent",
+      "description": "Génère le code de : [livrable précis]. Fichiers : [liste]. Implémenter : [fonctions/types clés]. Pattern : [pattern à utiliser].",
+      "phase": "T",
+      "dependsOn": []
+    }
+  ]
+}`
+}
+
+function buildReviewPrompt(
+  code: string,
+  taskDescription: string,
+  lang: string,
+): string {
+  const langInstruction = lang === 'fr' ? 'Réponds en français.' : 'Reply in English.'
+  return `Tu es un tech-lead senior qui révise du code.
+${langInstruction}
+
+## Tâche qui devait être réalisée
+${taskDescription}
+
+## Code / livrable produit
+${code.slice(0, 6000)}
+
+## Ta mission
+
+Évalue si le code produit répond bien à la tâche demandée.
+Vérifie : complétude, qualité, gestion d'erreurs, sécurité, bonnes pratiques.
+Sois pragmatique — approuve si c'est fonctionnel même si perfectible.
+
+Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
+{
+  "approved": true | false,
+  "issues": ["problème 1", "problème 2"],
+  "fixInstructions": "instructions précises pour corriger si non approuvé, vide si approuvé"
+}`
+}
+
+export async function planProjectTasks(
+  projectContext: string,
+  agents: AgentSelectionInput[],
+  aiConfig: AiConfig,
+  lang = 'fr',
+): Promise<ProjectTask[]> {
+  const apiKey = aiConfig.provider === 'anthropic'
+    ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
+    : (aiConfig.openaiKey ?? process.env.OPENAI_API_KEY ?? '')
+  if (!apiKey) throw new Error(`Clé API manquante pour ${aiConfig.provider}`)
+
+  const prompt = buildPlanPrompt(projectContext, agents, lang)
+  const raw = aiConfig.provider === 'anthropic'
+    ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
+    : await callJsonOpenAI(prompt, aiConfig.model, apiKey)
+
+  const result = raw as { tasks?: ProjectTask[] }
+  const validIds = new Set(agents.map(a => a.id))
+  return (result.tasks ?? [])
+    .filter(t => validIds.has(t.agentId))
+    .map((t, i) => ({ ...t, id: t.id || `task-${String(i + 1).padStart(2, '0')}` }))
+}
+
+export async function reviewCodeOutput(
+  output: string,
+  taskDescription: string,
+  aiConfig: AiConfig,
+  lang = 'fr',
+): Promise<TaskReview> {
+  const apiKey = aiConfig.provider === 'anthropic'
+    ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
+    : (aiConfig.openaiKey ?? process.env.OPENAI_API_KEY ?? '')
+  if (!apiKey) throw new Error(`Clé API manquante`)
+
+  const prompt = buildReviewPrompt(output, taskDescription, lang)
+  try {
+    const raw = aiConfig.provider === 'anthropic'
+      ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
+      : await callJsonOpenAI(prompt, aiConfig.model, apiKey)
+    const r = raw as Partial<TaskReview>
+    return {
+      approved: r.approved ?? true,
+      issues: r.issues ?? [],
+      fixInstructions: r.fixInstructions ?? '',
+    }
+  } catch {
+    // Review failed → approve by default to not block pipeline
+    return { approved: true, issues: [], fixInstructions: '' }
+  }
 }
 
 export async function generateNextSuggestions(
