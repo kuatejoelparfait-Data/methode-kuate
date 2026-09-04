@@ -12,6 +12,7 @@ import { conseilCommand } from './commands/conseil.js'
 import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
+import { projetCommand } from './commands/projet.js'
 
 const VERSION = '1.3.0'
 const cwd = process.cwd()
@@ -141,5 +142,19 @@ program
   .command('next')
   .description("Suggestions IA de la prochaine action à faire dans le projet")
   .action(() => nextCommand(cwd))
+
+program
+  .command('projet')
+  .description('Pipeline complet K → U → A → T — specs, backlog, architecture, code')
+  .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T)', undefined)
+  .action((opts: { from?: string }) => {
+    const validStarts = ['K', 'U', 'A', 'T']
+    const from = opts.from?.toUpperCase() as 'K' | 'U' | 'A' | 'T' | undefined
+    if (from && !validStarts.includes(from)) {
+      console.error(`Phase invalide "${opts.from}". Utilisez K, U, A ou T.`)
+      process.exit(1)
+    }
+    projetCommand(cwd, from)
+  })
 
 program.parse(process.argv)

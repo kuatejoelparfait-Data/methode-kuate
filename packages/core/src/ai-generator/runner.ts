@@ -35,16 +35,32 @@ ${memoryContext}
 
 ---
 
-## Instructions de réponse
+## RÈGLE ABSOLUE — Format des fichiers générés
 
-- Réponds directement en expert, sans préambule.
-- Pour tout code généré, utilise des blocs markdown avec le chemin du fichier en commentaire :
-  \`\`\`typescript
-  // src/auth/middleware.ts
-  ...le code...
-  \`\`\`
-- Si tu génères plusieurs fichiers, utilise un bloc séparé pour chacun.
-- Après le code, donne un résumé des étapes à faire pour intégrer.`
+Pour CHAQUE fichier de code que tu génères, utilise OBLIGATOIREMENT ce format exact :
+- La PREMIÈRE ligne du bloc doit être le chemin du fichier en commentaire
+- Un bloc séparé par fichier
+- Chemin relatif depuis la racine du projet
+
+\`\`\`typescript
+// src/auth/middleware.ts
+import { Request, Response, NextFunction } from 'express'
+// ...reste du code...
+\`\`\`
+
+\`\`\`typescript
+// src/types/auth.ts
+export interface JwtPayload {
+  userId: string
+}
+\`\`\`
+
+NE PAS mettre de texte entre le \`\`\` et le chemin.
+NE PAS mettre le chemin après le code.
+Le chemin TOUJOURS en première ligne avec // ou #.
+
+Réponds directement avec le code — pas de préambule.
+Après tous les blocs de code, résume les commandes d'installation si nécessaires.`
 }
 
 async function loadAgentPrompt(cwd: string, agentId: string): Promise<string> {
@@ -90,7 +106,7 @@ async function streamAnthropic(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       stream: true,
       system,
       messages: [{ role: 'user', content: userMessage }],
@@ -152,7 +168,7 @@ async function streamOpenAI(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       stream: true,
       messages: [
         { role: 'system', content: system },
@@ -204,16 +220,45 @@ async function streamOpenAI(
 
 export function detectFilesInOutput(content: string): DetectedFile[] {
   const files: DetectedFile[] = []
-  // Match ```lang\n// path/to/file.ext\n...code...\n```
-  const codeBlockRegex = /```(\w+)?\n(?:\/\/|#)\s*([\w/./-]+\.\w+)\n([\s\S]*?)```/g
-  let match
+  const seen = new Set<string>()
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  // Pattern 1 — chemin en 1ère ligne du bloc : ```lang\n// path/file.ext\n...code...```
+  const pattern1 = /```(\w+)?\n(?:\/\/|#)\s*([\w./\\-]+\.[\w]+)\n([\s\S]*?)```/g
+  let match: RegExpExecArray | null
+
+  while ((match = pattern1.exec(content)) !== null) {
     const language = match[1] ?? 'text'
     const filename = match[2].trim()
     const code = match[3].trim()
-    if (filename && code) {
+    if (filename && code && !seen.has(filename)) {
+      seen.add(filename)
       files.push({ filename, content: code, language })
+    }
+  }
+
+  // Pattern 2 — chemin comme titre avant le bloc : "**src/auth/middleware.ts**\n```lang\n...code...```"
+  // ou "### src/auth/middleware.ts\n```lang\n...code...```"
+  const pattern2 = /(?:#{1,3}\s+|`{0,1}\*{0,2})([\w./\\-]+\.[\w]+)\*{0,2}`{0,1}\s*\n```(\w+)?\n([\s\S]*?)```/g
+  while ((match = pattern2.exec(content)) !== null) {
+    const filename = match[1].trim()
+    const language = match[2] ?? 'text'
+    const code = match[3].trim()
+    if (filename && code && !seen.has(filename)) {
+      seen.add(filename)
+      files.push({ filename, content: code, language })
+    }
+  }
+
+  // Pattern 3 — commentaire dans les 3 premières lignes du bloc (pas forcément ligne 1)
+  const pattern3 = /```(\w+)?\n((?:[^\n]*\n){0,3}?)(?:\/\/|#)\s*([\w./\\-]+\.[\w]+)\n([\s\S]*?)```/g
+  while ((match = pattern3.exec(content)) !== null) {
+    const language = match[1] ?? 'text'
+    const preamble = match[2] ?? ''
+    const filename = match[3].trim()
+    const code = (preamble + '// ' + match[3] + '\n' + match[4]).trim()
+    if (filename && match[4].trim() && !seen.has(filename)) {
+      seen.add(filename)
+      files.push({ filename, content: match[4].trim(), language })
     }
   }
 
