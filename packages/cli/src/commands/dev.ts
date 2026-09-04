@@ -681,11 +681,135 @@ export async function devCommand(cwd: string): Promise<void> {
     }
   }
 
-  // Verifier package.json
-  const hasPkg = fs.existsSync(path.join(cwd, 'package.json'))
+  // Verifier package.json — si absent, le generer avec un agent
+  let hasPkg = fs.existsSync(path.join(cwd, 'package.json'))
   if (!hasPkg) {
-    p.log.warn('Pas de package.json. Le code genere est peut-etre incomplet.')
-    return
+    console.log()
+    console.log(chalk.bold.yellow('  package.json absent — Phase T n\'a pas genere la configuration du projet.'))
+    console.log()
+
+    const genPkg = await p.select<{ value: string; label: string; hint?: string }[], string>({
+      message: 'Que faire ?',
+      options: [
+        {
+          value: 'generate',
+          label: chalk.green('Generer package.json avec un agent'),
+          hint: 'L\'IA cree package.json + tsconfig.json + .env.example bases sur docs/architecture.md',
+        },
+        {
+          value: 'continue',
+          label: 'Continuer sans package.json (risque)',
+          hint: 'npm install echouera — utilisez si vous avez deja votre propre package.json',
+        },
+        {
+          value: 'skip',
+          label: chalk.dim('Annuler'),
+        },
+      ],
+    })
+
+    if (p.isCancel(genPkg) || genPkg === 'skip') return
+
+    if (genPkg === 'generate') {
+      // Charger l'architecture pour contexte
+      const archPath = path.join(cwd, 'docs', 'architecture.md')
+      const archContent = fs.existsSync(archPath)
+        ? (await fs.readFile(archPath, 'utf-8')).slice(0, 3000)
+        : ''
+      const specsPath = path.join(cwd, 'docs', 'specs.md')
+      const specsContent = fs.existsSync(specsPath)
+        ? (await fs.readFile(specsPath, 'utf-8')).slice(0, 1000)
+        : ''
+
+      const agentsDir = path.join(cwd, '.kuate', 'agents')
+      const setupAgent = ['dev-senior', 'tech-lead', 'expert-devops'].find(id =>
+        fs.existsSync(path.join(agentsDir, `${id}.md`))
+      ) ?? 'dev-senior'
+
+      const setupTask = `Génère la configuration complète du projet basée sur l'architecture suivante.
+
+## Architecture
+${archContent}
+
+## Contexte projet
+${specsContent}
+
+Génère TOUS ces fichiers de configuration (un bloc de code par fichier) :
+
+1. package.json — avec scripts dev, build, test, start ; toutes les dépendances de l'architecture
+2. tsconfig.json — configuration TypeScript stricte
+3. .env.example — toutes les variables d'environnement (sans valeurs sensibles)
+4. .gitignore — node_modules, dist, .env, etc.
+
+Format obligatoire pour chaque fichier :
+\`\`\`json
+// package.json
+{...}
+\`\`\`
+\`\`\`typescript
+// tsconfig.json
+{...}
+\`\`\`
+
+Un bloc par fichier. Le nom du fichier TOUJOURS en premiere ligne en commentaire.`
+
+      console.log()
+      console.log(chalk.dim(`  Agent ${setupAgent} — generation de la configuration...`))
+      console.log(chalk.dim('  ' + '-'.repeat(55)))
+      console.log()
+
+      let setupOutput = ''
+      try {
+        const result = await runAgent({
+          agentId: setupAgent,
+          task: setupTask,
+          cwd,
+          aiConfig,
+          onChunk: (chunk) => {
+            process.stdout.write(chunk)
+            setupOutput += chunk
+          },
+        })
+        setupOutput = result.content
+      } catch (err) {
+        console.error(chalk.red(`\n  Erreur : ${(err as Error).message}`))
+        return
+      }
+
+      console.log('\n')
+
+      // Sauvegarder les fichiers générés
+      const setupFiles = detectFilesInOutput(setupOutput)
+      for (const f of setupFiles) {
+        const fullPath = path.join(cwd, f.filename)
+        await fs.ensureDir(path.dirname(fullPath))
+        await fs.writeFile(fullPath, f.content, 'utf-8')
+        console.log(chalk.green(`  ${f.filename}`))
+      }
+
+      // Si package.json pas détecté dans les blocs, chercher dans la sortie brute
+      if (!setupFiles.some(f => f.filename === 'package.json')) {
+        // Tenter d'extraire le JSON directement
+        const pkgMatch = setupOutput.match(/\/\/ package\.json\n([\s\S]*?)```/)
+          ?? setupOutput.match(/\{[\s\S]*?"name"[\s\S]*?"scripts"[\s\S]*?\}(?=\n)/)
+        if (pkgMatch) {
+          try {
+            const pkgContent = pkgMatch[1] ?? pkgMatch[0]
+            JSON.parse(pkgContent) // valider
+            await fs.writeFile(path.join(cwd, 'package.json'), pkgContent.trim(), 'utf-8')
+            console.log(chalk.green('  package.json (extrait)'))
+          } catch { /* ignore */ }
+        }
+      }
+
+      hasPkg = fs.existsSync(path.join(cwd, 'package.json'))
+      if (!hasPkg) {
+        p.log.warn('package.json non genere. Creez-le manuellement ou relancez.')
+        return
+      }
+
+      console.log()
+    }
   }
 
   // 1. Install
