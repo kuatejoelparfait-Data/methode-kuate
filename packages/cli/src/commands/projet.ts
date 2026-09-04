@@ -1,12 +1,12 @@
 /**
- * kuate projet — Pipeline complet K→U→A→T
+ * kuate projet — Pipeline complet K→U→A→T→E
  *
  * Lance les agents phase par phase pour générer tous les livrables du projet :
  *   K  Knower      → docs/specs.md        (user stories, exigences, critères)
  *   U  Unifier     → docs/backlog.md      (backlog priorisé, sprints)
  *   A  Architect   → docs/architecture.md (stack, décisions, schémas)
  *   T  Transformer → code source          (mode autonome ou export outil externe)
- *   E  Evaluator   → (suggéré après T)
+ *   E  Evaluator   → docs/evaluation.md  (qualité, tests, sécurité, retro)
  *
  * Après chaque phase : proposition de continuer, exporter ou arrêter.
  */
@@ -33,7 +33,7 @@ import { initI18n } from '../i18n/index.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type PipelinePhase = 'K' | 'U' | 'A' | 'T'
+type PipelinePhase = 'K' | 'U' | 'A' | 'T' | 'E'
 
 interface PhaseConfig {
   id: PipelinePhase
@@ -157,6 +157,42 @@ Format obligatoire :
 ...
 \`\`\``,
   },
+  {
+    id: 'E',
+    name: 'Evaluator',
+    role: 'Qualite & Evaluation',
+    color: '#8B3500',
+    agentId: 'tech-lead',
+    fallbackAgentIds: ['expert-securite', 'coach-agile', 'dev-senior'],
+    output: 'docs/evaluation.md',
+    taskBuilder: (project, _method, _desc, lang) => lang === 'fr'
+      ? `Tu travailles sur le projet "${project}".
+Les specs sont dans docs/specs.md, le backlog dans docs/backlog.md, l'architecture dans docs/architecture.md.
+
+Génère le rapport d'évaluation qualité (docs/evaluation.md) :
+
+1. **Critères d'acceptation** — vérification de chaque user story (liste : OK / A TESTER / NON COUVERT)
+2. **Plan de tests** — tests unitaires, d'intégration, end-to-end à implémenter en priorité
+   - Pour chaque test : fichier cible, fonction testée, cas nominal, cas d'erreur
+3. **Audit de sécurité** — points OWASP Top 10 applicables, risques identifiés, mitigations
+4. **Analyse de performance** — goulots d'étranglement potentiels, recommandations
+5. **Dette technique** — éléments à refactoriser, TODO critiques
+6. **Retrospective** — points forts du design, points d'amélioration, leçons apprises
+7. **Prochaines itérations** — features v2, évolutions recommandées
+
+Format obligatoire :
+\`\`\`markdown
+// docs/evaluation.md
+# Evaluation — ${project}
+...
+\`\`\``
+      : `Generate the quality evaluation report for "${project}" in docs/evaluation.md. Include acceptance criteria check, test plan, security audit, tech debt, retrospective.
+\`\`\`markdown
+// docs/evaluation.md
+# Evaluation — ${project}
+...
+\`\`\``,
+  },
 ]
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
@@ -165,7 +201,7 @@ const PHASE_COLORS: Record<string, string> = {
   K: '#FFB300', U: '#FF8C00', A: '#E06000', T: '#C04800', E: '#8B3500',
 }
 
-function phaseTracker(current: PipelinePhase | 'E', done: Set<string>): string {
+function phaseTracker(current: PipelinePhase | 'done', done: Set<string>): string {
   const all: Array<{ id: string; name: string }> = [
     { id: 'K', name: 'Knower' },
     { id: 'U', name: 'Unifier' },
@@ -610,8 +646,6 @@ async function runPhaseT(
     if (allGeneratedFiles.length > 8) console.log(chalk.dim(`    ... et ${allGeneratedFiles.length - 8} autres`))
   }
   console.log()
-  console.log(chalk.dim('  Prochaine etape : ') + chalk.bold.hex('#8B3500')('Phase E — Evaluator'))
-  console.log(chalk.dim('  Lancez : ') + chalk.cyan('kuate phase E'))
   console.log()
 }
 
@@ -667,10 +701,11 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
     if (!done.has('K')) return 'K'
     if (!done.has('U')) return 'U'
     if (!done.has('A')) return 'A'
-    return 'T'
+    if (!done.has('T')) return 'T'
+    return 'E'
   })()
 
-  const phaseOrder: PipelinePhase[] = ['K', 'U', 'A', 'T']
+  const phaseOrder: PipelinePhase[] = ['K', 'U', 'A', 'T', 'E']
   const startIdx = phaseOrder.indexOf(startPhase)
 
   const doneDocs: string[] = [...phaseDocs]
@@ -687,12 +722,40 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
       // Phase T = code generation
       await runPhaseT(cwd, config, aiConfig, doneDocs)
       done.add('T')
-      break
+
+      // Proposer de continuer vers Phase E
+      const continueToE = await p.select<{ value: string; label: string; hint?: string }[], string>({
+        message: 'Continuer vers Phase E — Evaluator ?',
+        options: [
+          {
+            value: 'continue',
+            label: chalk.green('Oui — generer docs/evaluation.md'),
+            hint: 'Rapport qualite, plan de tests, audit securite, retrospective',
+          },
+          {
+            value: 'export',
+            label: 'Exporter vers outil externe maintenant',
+            hint: 'Claude Code, Codex, Cursor — avec tout le contexte genere',
+          },
+          {
+            value: 'skip',
+            label: chalk.dim('Non — terminer ici'),
+          },
+        ],
+      })
+
+      if (p.isCancel(continueToE) || continueToE === 'skip') break
+      if (continueToE === 'export') {
+        await exportToExternalTool(cwd, config, doneDocs)
+        break
+      }
+      // continueToE === 'continue' → loop continue → Phase E
+      continue
     }
 
     const phaseDef = PHASES.find(ph => ph.id === currentPhase)!
 
-    // Option de continuer ou sauter
+    // Option de continuer ou sauter (sauf phase de départ)
     if (i > startIdx) {
       const continueChoice = await p.select<{ value: string; label: string; hint?: string }[], string>({
         message: `Lancer la Phase ${currentPhase} — ${phaseDef.name} ?`,
@@ -731,7 +794,7 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
 
   // Résumé final
   console.log()
-  console.log('  ' + phaseTracker('E', done))
+  console.log('  ' + phaseTracker('done', done))
   console.log()
   console.log(chalk.bold('  Livrables generes :'))
   for (const doc of doneDocs) {
@@ -740,9 +803,11 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
   console.log()
 
   if (!done.has('T')) {
-    console.log(chalk.dim('  Phase T non lancee. Lancez :') + ' ' + chalk.cyan('kuate projet') + chalk.dim(' ou ') + chalk.cyan('kuate phase T'))
+    console.log(chalk.dim('  Reprendre :') + ' ' + chalk.cyan('kuate projet'))
+  } else if (!done.has('E')) {
+    console.log(chalk.dim('  Phase E disponible :') + ' ' + chalk.cyan('kuate projet --from E'))
   } else {
-    console.log(chalk.dim('  Phase E disponible :') + ' ' + chalk.cyan('kuate phase E'))
+    console.log(chalk.bold.hex('#8B3500')('  Pipeline complet K U A T E termine.'))
   }
   console.log()
 }

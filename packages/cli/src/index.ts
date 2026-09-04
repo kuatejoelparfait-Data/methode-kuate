@@ -146,15 +146,15 @@ program
 program
   .command('projet')
   .description('Pipeline complet K → U → A → T — specs, backlog, architecture, code')
-  .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T)', undefined)
+  .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T|E)', undefined)
   .action((opts: { from?: string }) => {
-    const validStarts = ['K', 'U', 'A', 'T']
-    const from = opts.from?.toUpperCase() as 'K' | 'U' | 'A' | 'T' | undefined
+    const validStarts = ['K', 'U', 'A', 'T', 'E']
+    const from = opts.from?.toUpperCase() as 'K' | 'U' | 'A' | 'T' | 'E' | undefined
     if (from && !validStarts.includes(from)) {
       console.error(`Phase invalide "${opts.from}". Utilisez K, U, A ou T.`)
       process.exit(1)
     }
-    projetCommand(cwd, from)
+    projetCommand(cwd, from as 'K' | 'U' | 'A' | 'T' | 'E' | undefined)
   })
 
 program.parse(process.argv)
