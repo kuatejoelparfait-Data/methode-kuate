@@ -104,4 +104,11 @@ describe('analyzeSpecs', () => {
     expect(report).toContain('US-001')
     expect(report).toContain('T-001')
   })
+
+  it('G2 : specs sans aucune story, G5 : backlog sans aucune tâche', () => {
+    const files = { ...completeFiles(), specs: '# Specs\n\nTexte libre sans story.', backlog: '# Backlog\n\nTexte libre.' }
+    const errs = analyzeSpecs(files).issues.filter(i => i.severity === 'error')
+    expect(errs.some(i => i.rule === 'G2' && i.phase === 'K' && !i.id)).toBe(true)
+    expect(errs.some(i => i.rule === 'G5' && i.phase === 'U' && !i.id)).toBe(true)
+  })
 })

@@ -81,7 +81,10 @@ export function analyzeSpecs(files: SpecFiles): SpecAnalysis {
   for (const id of new Set(dupes(model.criteria.map(c => c.id)))) add('G8', 'error', 'K', SPEC_PATHS.specs, `Identifiant ${id} défini plusieurs fois.`, id)
   for (const id of new Set(dupes(model.tasks.map(t => t.id)))) add('G8', 'error', 'U', SPEC_PATHS.backlog, `Identifiant ${id} défini plusieurs fois.`, id)
 
-  // G2 — chaque story a au moins un critère
+  // G2 — chaque story a au moins un critère (et il y a au moins une story)
+  if (!blank(files.specs) && model.stories.length === 0) {
+    add('G2', 'error', 'K', SPEC_PATHS.specs, 'Aucune story (### US-001 — Titre) trouvée dans le document.')
+  }
   for (const s of model.stories) {
     if (!model.criteria.some(c => c.storyId === s.id)) {
       add('G2', 'error', 'K', SPEC_PATHS.specs, `${s.id} n'a aucun critère d'acceptation.`, s.id)
@@ -106,6 +109,9 @@ export function analyzeSpecs(files: SpecFiles): SpecAnalysis {
     ...model.criteria.map(c => c.id),
     ...model.requirements.map(r => r.id),
   ])
+  if (!blank(files.backlog) && model.tasks.length === 0) {
+    add('G5', 'error', 'U', SPEC_PATHS.backlog, 'Aucune tâche (### T-001 — Titre) trouvée dans le document.')
+  }
   for (const t of model.tasks) {
     if (t.covers.length === 0) add('G5', 'error', 'U', SPEC_PATHS.backlog, `${t.id} n'a pas de ligne Covers.`, t.id)
     if (t.files.length === 0) add('G5', 'error', 'U', SPEC_PATHS.backlog, `${t.id} n'a pas de ligne Files.`, t.id)

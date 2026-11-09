@@ -135,4 +135,18 @@ describe('cycle KUATE', () => {
     expect(text).toContain('K Knower : à faire')
     expect(text).toContain('Pas de mobile')
   })
+
+  it('porte : erreurs de K comptées, absente sans document, jamais pour T', async () => {
+    expect((await statusOf('K')).gate).toBeUndefined()
+    await fs.outputFile(
+      path.join(cwd, 'docs/specs.md'),
+      '### US-001 — x\n- AC-001 (US-001) : a [NEEDS CLARIFICATION: q]\n',
+    )
+    const k = await statusOf('K')
+    expect(k.gate?.errors).toBe(1)
+    expect((await statusOf('T')).gate).toBeUndefined()
+    const state = await readCycle(cwd)
+    const text = formatCycleSummary(await computeCycleStatus(cwd, state), state)
+    expect(text).toContain('porte : 1 erreur(s)')
+  })
 })

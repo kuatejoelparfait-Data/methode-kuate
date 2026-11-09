@@ -1,6 +1,8 @@
 import path from 'node:path'
 import fs from 'fs-extra'
 import type { Phase } from '../types.js'
+import { readSpecFiles } from '../spec/files.js'
+import { analyzeSpecs, issuesForPhase } from '../spec/analyze.js'
 
 // ── Constantes du cycle KUATE ────────────────────────────────────────────────
 
@@ -126,6 +128,8 @@ export interface PhaseStatus {
   modifiedAt?: string
   /** Si périmée : phase amont modifiée plus récemment. */
   staleBecause?: Phase
+  /** Porte de complétude du paquet de specs (K, U, A) quand le document de la phase existe. */
+  gate?: { errors: number; warnings: number }
 }
 
 export interface CycleStatus {
@@ -180,6 +184,10 @@ export async function computeCycleStatus(cwd: string, stateArg?: CycleState): Pr
   const state = stateArg ?? await readCycle(cwd)
   const probes = await Promise.all(CYCLE_PHASES.map(ph => probeArtifact(cwd, ph)))
 
+  // Porte de complétude : seulement si un document K, U ou A existe.
+  const hasSpecDoc = probes.some((pr, i) => pr.artifact !== undefined && CYCLE_PHASES[i] !== 'T' && CYCLE_PHASES[i] !== 'E')
+  const analysis = hasSpecDoc ? analyzeSpecs(await readSpecFiles(cwd)) : null
+
   const phases: PhaseStatus[] = []
   const issues: string[] = []
 
@@ -191,6 +199,13 @@ export async function computeCycleStatus(cwd: string, stateArg?: CycleState): Pr
       status: 'todo',
       artifact,
       modifiedAt: mtime ? new Date(mtime).toISOString() : undefined,
+    }
+    if (analysis && artifact !== undefined && (phase === 'K' || phase === 'U' || phase === 'A')) {
+      const list = issuesForPhase(analysis, phase)
+      base.gate = {
+        errors: list.filter(x => x.severity === 'error').length,
+        warnings: list.filter(x => x.severity === 'warning').length,
+      }
     }
     const override = state.overrides[phase]
 
@@ -268,7 +283,10 @@ export function statusLabel(kind: PhaseStatusKind): string {
 export function formatCycleSummary(status: CycleStatus, state: CycleState): string {
   const lines = status.phases.map(ps => {
     const where = ps.artifact ? ` — ${ps.artifact}` : ''
-    return `- ${ps.phase} ${ps.name} : ${STATUS_LABELS[ps.status]}${where}`
+    const gate = ps.gate
+      ? ps.gate.errors > 0 ? ` — porte : ${ps.gate.errors} erreur(s) (kuate spec analyze)` : ' — porte : complète'
+      : ''
+    return `- ${ps.phase} ${ps.name} : ${STATUS_LABELS[ps.status]}${where}${gate}`
   })
   if (status.issues.length > 0) {
     lines.push('', 'Incohérences détectées :', ...status.issues.map(i => `- ${i}`))
