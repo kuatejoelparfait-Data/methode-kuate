@@ -31,6 +31,8 @@ import { AGENTS_BUSINESS } from '@methode-kuate/agents-business'
 import { AGENTS_CONTENT } from '@methode-kuate/agents-content'
 import { AGENTS_EDUCATION } from '@methode-kuate/agents-education'
 import { initI18n } from '../i18n/index.js'
+import { resolveAiConfig } from '../utils/ai-select.js'
+import type { AiSelectOptions } from '../utils/ai-select.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -776,7 +778,7 @@ async function runPhaseT(
 
 // ── Entrée principale ─────────────────────────────────────────────────────────
 
-export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Promise<void> {
+export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOpts: AiSelectOptions = {}): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouve. Lancez kuate init d'abord."))
     process.exit(1)
@@ -785,11 +787,7 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase): Pro
   const config = await readConfig(cwd)
   initI18n(config.lang)
 
-  const aiConfig = await readGlobalAiConfig()
-  if (!aiConfig) {
-    console.error(chalk.red('IA non configuree. Lancez kuate config ai.'))
-    process.exit(1)
-  }
+  const aiConfig = await resolveAiConfig(aiOpts)
 
   // Lire la description du projet depuis KUATE.md ou contexte
   let projectDescription = ''

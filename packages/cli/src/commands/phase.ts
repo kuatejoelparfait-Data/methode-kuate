@@ -18,6 +18,8 @@ import { AGENTS_BUSINESS } from '@methode-kuate/agents-business'
 import { AGENTS_CONTENT } from '@methode-kuate/agents-content'
 import { AGENTS_EDUCATION } from '@methode-kuate/agents-education'
 import { initI18n } from '../i18n/index.js'
+import { resolveAiConfig } from '../utils/ai-select.js'
+import type { AiSelectOptions } from '../utils/ai-select.js'
 
 const PHASE_INFO: Record<Phase, { name: string; desc: string; color: string }> = {
   K: { name: 'Knower',      desc: 'Decouvrir & Contextualiser', color: '#FFB300' },
@@ -689,7 +691,7 @@ async function interactivePhaseLoop(
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-export async function phaseCommand(cwd: string, phase: Phase): Promise<void> {
+export async function phaseCommand(cwd: string, phase: Phase, aiOpts: AiSelectOptions = {}): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouve. Lancez kuate init d'abord."))
     process.exit(1)
@@ -698,11 +700,7 @@ export async function phaseCommand(cwd: string, phase: Phase): Promise<void> {
   const config = await readConfig(cwd)
   initI18n(config.lang)
 
-  const aiConfig = await readGlobalAiConfig()
-  if (!aiConfig) {
-    console.error(chalk.red('IA non configuree. Lancez kuate config ai.'))
-    process.exit(1)
-  }
+  const aiConfig = await resolveAiConfig(aiOpts)
 
   const phaseInfo = PHASE_INFO[phase]
 

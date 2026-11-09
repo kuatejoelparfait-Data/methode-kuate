@@ -12,6 +12,8 @@ import { conseilCommand } from './commands/conseil.js'
 import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
+import { addAiOptions, aiOptsOf } from './utils/ai-select.js'
+import type { AiSelectOptions } from './utils/ai-select.js'
 import { projetCommand } from './commands/projet.js'
 import { devCommand } from './commands/dev.js'
 
@@ -119,48 +121,50 @@ program
     conseilCommand(cwd, opts.agents.split(',').map(s => s.trim()), opts.topic, opts.save)
   )
 
-program
+addAiOptions(program
   .command('run')
   .description("Exécute un agent IA sur une tâche et écrit le résultat dans le projet")
   .requiredOption('--agent <nom>', 'Nom de l\'agent (ex: dev-senior, architecte-solution)')
-  .requiredOption('--task <texte>', 'Description de la tâche à réaliser')
-  .action((opts: { agent: string; task: string }) => runCommand(cwd, opts.agent, opts.task))
+  .requiredOption('--task <texte>', 'Description de la tâche à réaliser'))
+  .action((opts: { agent: string; task: string } & AiSelectOptions) =>
+    runCommand(cwd, opts.agent, opts.task, aiOptsOf(opts))
+  )
 
-program
+addAiOptions(program
   .command('phase <phase>')
-  .description('Lance une session guidée pour une phase KUATE (K|U|A|T|E)')
-  .action((phase: string) => {
+  .description('Lance une session guidée pour une phase KUATE (K|U|A|T|E)'))
+  .action((phase: string, opts: AiSelectOptions) => {
     const validPhases = ['K', 'U', 'A', 'T', 'E']
     const p = phase.toUpperCase()
     if (!validPhases.includes(p)) {
       console.error(`Phase invalide "${phase}". Utilisez K, U, A, T ou E.`)
       process.exit(1)
     }
-    phaseCommand(cwd, p as 'K' | 'U' | 'A' | 'T' | 'E')
+    phaseCommand(cwd, p as 'K' | 'U' | 'A' | 'T' | 'E', aiOptsOf(opts))
   })
 
-program
+addAiOptions(program
   .command('next')
-  .description("Suggestions IA de la prochaine action à faire dans le projet")
-  .action(() => nextCommand(cwd))
+  .description("Suggestions IA de la prochaine action à faire dans le projet"))
+  .action((opts: AiSelectOptions) => nextCommand(cwd, aiOptsOf(opts)))
 
-program
+addAiOptions(program
   .command('dev')
-  .description('Lance le projet en local : install, tests, serveur, terminal agents')
-  .action(() => devCommand(cwd))
+  .description('Lance le projet en local : install, tests, serveur, terminal agents'))
+  .action((opts: AiSelectOptions) => devCommand(cwd, aiOptsOf(opts)))
 
-program
+addAiOptions(program
   .command('projet')
   .description('Pipeline complet K → U → A → T → E — specs, backlog, architecture, code, evaluation')
-  .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T|E)', undefined)
-  .action((opts: { from?: string }) => {
+  .option('--from <phase>', 'Démarrer à une phase précise (K|U|A|T|E)', undefined))
+  .action((opts: { from?: string } & AiSelectOptions) => {
     const validStarts = ['K', 'U', 'A', 'T', 'E']
     const from = opts.from?.toUpperCase() as 'K' | 'U' | 'A' | 'T' | 'E' | undefined
     if (from && !validStarts.includes(from)) {
       console.error(`Phase invalide "${opts.from}". Utilisez K, U, A ou T.`)
       process.exit(1)
     }
-    projetCommand(cwd, from as 'K' | 'U' | 'A' | 'T' | 'E' | undefined)
+    projetCommand(cwd, from as 'K' | 'U' | 'A' | 'T' | 'E' | undefined, aiOptsOf(opts))
   })
 
 program.parse(process.argv)
