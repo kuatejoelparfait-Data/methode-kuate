@@ -1,6 +1,6 @@
 # Spec Pack KUATE — design
 
-Date : 2026-11-10 · Statut : proposé, en attente de validation
+Date : 2026-11-10 · Statut : implémenté (voir le plan docs/superpowers/plans/2026-11-10-spec-pack.md). Ajouts à l'implémentation : règle G0 (document absent), G8 (identifiant en double), erreurs G2/G5 quand le document ne contient aucune story ou aucune tâche.
 
 ## Intention
 
