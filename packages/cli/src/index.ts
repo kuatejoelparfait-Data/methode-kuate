@@ -12,6 +12,7 @@ import { conseilCommand } from './commands/conseil.js'
 import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
+import { cycleCommand } from './commands/cycle.js'
 import { addAiOptions, aiOptsOf } from './utils/ai-select.js'
 import type { AiSelectOptions } from './utils/ai-select.js'
 import { projetCommand } from './commands/projet.js'
@@ -147,6 +148,15 @@ addAiOptions(program
   .command('next')
   .description("Suggestions IA de la prochaine action à faire dans le projet"))
   .action((opts: AiSelectOptions) => nextCommand(cwd, aiOptsOf(opts)))
+
+addAiOptions(program
+  .command('cycle')
+  .description("Analyse le cycle K·U·A·T·E (phases périmées, incohérences) et permet des ajustements")
+  .option('--analyse', 'Analyse de cohérence par IA des documents du cycle')
+  .option('--json', 'Affiche le statut du cycle en JSON (sans IA)'))
+  .action((opts: AiSelectOptions & { analyse?: boolean; json?: boolean }) =>
+    cycleCommand(cwd, { ...aiOptsOf(opts), analyse: opts.analyse, json: opts.json })
+  )
 
 addAiOptions(program
   .command('dev')

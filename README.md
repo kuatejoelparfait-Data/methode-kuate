@@ -120,6 +120,24 @@ Apres chaque tache : nouvelles suggestions basees sur ce qui vient d'etre fait.
 
 ---
 
+### `kuate cycle`
+
+Analyse le cycle K·U·A·T·E et permet de l'ajuster. Sans appel IA par défaut.
+
+```bash
+kuate cycle              # vue des 5 phases + menu d'ajustements
+kuate cycle --analyse    # + analyse de cohérence par IA (specs ↔ backlog ↔ archi ↔ code ↔ éval)
+kuate cycle --json       # statut machine-lisible
+```
+
+Statuts : `produite`, `périmée` (une phase amont a été modifiée après), `validée`, `sautée`, `à faire`.
+Ajustements : relancer une phase (ancien document sauvegardé dans `.kuate/backups/`), valider, sauter, rouvrir, ajouter une note transmise aux agents.
+L'état est conservé dans `.kuate/cycle.json`. `kuate projet` ignore les phases sautées/validées et démarre à la première phase à faire ou périmée.
+
+`kuate next` connaît le cycle : il affiche l'avancement, priorise les phases périmées, ne repropose pas ce qui est déjà fait, propose des suggestions de secours si l'IA est indisponible et sauvegarde les fichiers remplacés dans `.kuate/backups/`.
+
+---
+
 ### `kuate init`
 
 Lance le wizard interactif (6 etapes) pour initialiser la Methode KUATE dans le projet courant.

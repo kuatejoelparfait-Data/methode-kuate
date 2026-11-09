@@ -443,11 +443,19 @@ export interface NextSuggestion {
   reason: string
 }
 
+export interface NextSuggestionsExtra {
+  /** Statut du cycle KUATE (phases produites, périmées, sautées, incohérences, notes). */
+  cycleSummary?: string
+  /** Actions déjà réalisées, à ne pas répéter. */
+  doneActions?: string
+}
+
 function buildNextSuggestionsPrompt(
   projectContext: string,
   agents: AgentSelectionInput[],
   recentMemory: string,
   lang: string,
+  extra: NextSuggestionsExtra = {},
 ): string {
   const langInstruction = lang === 'fr' ? 'Réponds en français.' : 'Reply in English.'
   const agentList = agents.map(a =>
@@ -463,12 +471,20 @@ ${projectContext}
 ## Dernières actions (mémoire)
 ${recentMemory || '*(aucune action enregistrée)*'}
 
+## État du cycle KUATE
+${extra.cycleSummary || '*(statut du cycle indisponible)*'}
+
+## Actions déjà réalisées (ne PAS les répéter)
+${extra.doneActions || '*(aucune)*'}
+
 ## Agents disponibles dans ce projet
 ${agentList}
 
 ## Ta mission
 
 Analyse l'état actuel du projet et propose entre 5 et 7 prochaines actions concrètes.
+Respecte l'état du cycle : traite en priorité les phases PÉRIMÉES et les incohérences, puis la première phase à faire.
+Ne propose rien pour une phase sautée volontairement. Tiens compte des notes d'ajustement de l'utilisateur.
 Chaque action = 1 agent + 1 tâche précise et actionnable immédiatement.
 Varie les phases KUATE (K, U, A, T, E) selon la progression logique du projet.
 Les tâches doivent être spécifiques au projet décrit, pas génériques.
@@ -638,6 +654,7 @@ export async function generateNextSuggestions(
   recentMemory: string,
   aiConfig: AiConfig,
   lang = 'fr',
+  extra: NextSuggestionsExtra = {},
 ): Promise<NextSuggestion[]> {
   const apiKey = aiConfig.provider === 'anthropic'
     ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
@@ -645,7 +662,7 @@ export async function generateNextSuggestions(
 
   if (!apiKey) throw new Error(`Clé API manquante pour ${aiConfig.provider}`)
 
-  const prompt = buildNextSuggestionsPrompt(projectContext, agents, recentMemory, lang)
+  const prompt = buildNextSuggestionsPrompt(projectContext, agents, recentMemory, lang, extra)
 
   const raw = aiConfig.provider === 'anthropic'
     ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
@@ -655,6 +672,70 @@ export async function generateNextSuggestions(
   const validIds = new Set(agents.map(a => a.id))
 
   return (result.suggestions ?? []).filter(s => validIds.has(s.agentId))
+}
+
+// ── Analyse du cycle KUATE ───────────────────────────────────────────────────
+
+export interface CycleDoc {
+  phase: string
+  path: string
+  content: string
+}
+
+export interface CycleAnalysis {
+  summary: string
+  issues: Array<{ phase: string; problem: string; fix: string }>
+  recommendations: string[]
+}
+
+const CYCLE_DOC_CHAR_CAP = 6000
+
+export async function analyzeCycleWithAI(
+  docs: CycleDoc[],
+  statusSummary: string,
+  aiConfig: AiConfig,
+  lang = 'fr',
+): Promise<CycleAnalysis> {
+  const apiKey = aiConfig.provider === 'anthropic'
+    ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
+    : (aiConfig.openaiKey ?? process.env.OPENAI_API_KEY ?? '')
+  if (!apiKey) throw new Error(`Clé API manquante pour ${aiConfig.provider}`)
+
+  const langInstruction = lang === 'fr' ? 'Réponds en français.' : 'Reply in English.'
+  const docBlocks = docs.map(d =>
+    `### Phase ${d.phase} — ${d.path}\n${d.content.slice(0, CYCLE_DOC_CHAR_CAP)}`
+  ).join('\n\n') || '*(aucun document)*'
+
+  const prompt = `Tu es un auditeur de projet expert de la méthode KUATE (K Knower, U Unifier, A Architect, T Transformer, E Evaluator).
+${langInstruction}
+
+## Statut du cycle
+${statusSummary}
+
+## Documents produits
+${docBlocks}
+
+## Ta mission
+Analyse la cohérence du cycle : les specs (K) sont-elles reflétées dans le backlog (U), l'architecture (A), le code (T) et l'évaluation (E) ?
+Repère les trous, contradictions, éléments périmés ou manquants entre phases. Reste factuel et concis.
+
+Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
+{
+  "summary": "diagnostic global en 2-3 phrases",
+  "issues": [{ "phase": "K|U|A|T|E", "problem": "problème précis", "fix": "ajustement concret à faire" }],
+  "recommendations": ["action prioritaire 1", "action prioritaire 2"]
+}`
+
+  const raw = aiConfig.provider === 'anthropic'
+    ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
+    : await callJsonOpenAI(prompt, aiConfig.model, apiKey)
+
+  const r = raw as Partial<CycleAnalysis>
+  return {
+    summary: typeof r.summary === 'string' ? r.summary : '',
+    issues: Array.isArray(r.issues) ? r.issues : [],
+    recommendations: Array.isArray(r.recommendations) ? r.recommendations : [],
+  }
 }
 
 export async function analyzeAndSelectAgents(

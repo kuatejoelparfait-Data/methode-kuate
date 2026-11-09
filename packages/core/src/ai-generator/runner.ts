@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'fs-extra'
 import type { AiConfig } from './index.js'
+import { readCycle } from '../cycle/index.js'
 
 export interface RunAgentOptions {
   agentId: string
@@ -81,8 +82,17 @@ async function loadMemoryContext(cwd: string): Promise<string> {
     if (!fs.existsSync(filePath)) continue
     const content = (await fs.readFile(filePath, 'utf-8')).trim()
     if (!content) continue
-    const preview = content.split('\n').slice(0, 8).join('\n')
+    // memory.md est un journal : les entrées récentes sont en bas, on garde la fin.
+    const all = content.split('\n')
+    const preview = sec === 'memory' && all.length > 20
+      ? ['(…)', ...all.slice(-20)].join('\n')
+      : all.slice(0, 8).join('\n')
     lines.push(`### ${sec.toUpperCase()}\n${preview}`)
+  }
+
+  const notes = (await readCycle(cwd)).notes.slice(-5)
+  if (notes.length > 0) {
+    lines.push(`### AJUSTEMENTS DU CYCLE\n${notes.map(n => `- ${n.text}`).join('\n')}`)
   }
 
   return lines.length > 0 ? lines.join('\n\n') : '*(mémoire vide — lancez kuate memory seed)*'

@@ -6,6 +6,13 @@ import {
   isKuateProject,
   readConfig,
   readGlobalAiConfig,
+  readCycle,
+  computeCycleStatus,
+  formatCycleSummary,
+  formatHistory,
+  fallbackSuggestions,
+  recordHistory,
+  backupFile,
   generateNextSuggestions,
   runAgent,
   detectFilesInOutput,
@@ -18,6 +25,7 @@ import { AGENTS_EDUCATION } from '@methode-kuate/agents-education'
 import type { AgentDefinition } from '@methode-kuate/core'
 import { initI18n } from '../i18n/index.js'
 import { resolveAiConfig } from '../utils/ai-select.js'
+import { renderTracker } from '../utils/cycle-view.js'
 import type { AiSelectOptions } from '../utils/ai-select.js'
 
 const PHASE_COLORS: Record<string, string> = {
@@ -74,6 +82,20 @@ async function saveMemoryEntry(cwd: string, agentId: string, note: string): Prom
   await fs.appendFile(memoryPath, `\n## ${date} — ${agentId}\n\n${note.trim()}\n`)
 }
 
+/** Statut du cycle + historique, transmis à l'IA pour des suggestions qui tiennent compte de l'avancement. */
+async function loadCycleContext(cwd: string) {
+  const state = await readCycle(cwd)
+  const status = await computeCycleStatus(cwd, state)
+  return {
+    state,
+    status,
+    extra: {
+      cycleSummary: formatCycleSummary(status, state),
+      doneActions: formatHistory(state),
+    },
+  }
+}
+
 export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouvé. Lancez kuate init d'abord."))
@@ -107,6 +129,12 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
     chalk.bold.hex('#FF8C00')(`  ${config.project}`) +
     chalk.dim(` · ${PROVIDER_LABELS[aiConfig.provider]} / ${aiConfig.model}`)
   )
+  const cycle0 = await loadCycleContext(cwd)
+  console.log()
+  console.log('  ' + renderTracker(cycle0.status))
+  for (const issue of cycle0.status.issues.slice(0, 3)) console.log(chalk.yellow(`  ⚠ ${issue}`))
+  console.log(chalk.dim('  kuate cycle pour analyser et ajuster le cycle'))
+  console.log()
   console.log(chalk.dim('  Analyse du projet pour suggérer la prochaine action...'))
   console.log()
 
@@ -128,24 +156,37 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
   const spin = p.spinner()
   spin.start('Génération des suggestions...')
 
-  let suggestions
+  const skippedPhases = new Set(
+    Object.entries(cycle0.state.overrides).filter(([, v]) => v === 'skipped').map(([k]) => k),
+  )
+  const keepRelevant = <T extends { phase: string }>(list: T[]): T[] =>
+    list.filter(s => !skippedPhases.has(s.phase))
+
+  let suggestions: Awaited<ReturnType<typeof generateNextSuggestions>> = []
   try {
-    suggestions = await generateNextSuggestions(
+    suggestions = keepRelevant(await generateNextSuggestions(
       projectContext,
       agentInputs,
       recentMemory,
       aiConfig,
       config.lang,
-    )
+      cycle0.extra,
+    ))
     spin.stop(chalk.green(`${suggestions.length} suggestions générées`))
   } catch (err) {
     spin.stop(chalk.yellow(`Erreur IA : ${(err as Error).message}`))
-    process.exit(1)
   }
 
   if (suggestions.length === 0) {
-    p.log.warn('Aucune suggestion retournée. Vérifiez la mémoire projet (kuate memory seed).')
-    process.exit(0)
+    // Filet de sécurité : suggestions déterministes basées sur le cycle
+    suggestions = fallbackSuggestions(cycle0.status, agentInputs)
+    if (suggestions.length > 0) {
+      p.log.warn('Suggestions IA indisponibles — suggestions de secours basées sur le cycle.')
+    } else if (cycle0.status.next === null) {
+      p.log.info('Cycle à jour. Vous pouvez décrire une tâche manuellement.')
+    } else {
+      p.log.warn('Aucune suggestion. Vérifiez la mémoire projet (kuate memory seed).')
+    }
   }
 
   console.log()
@@ -157,6 +198,7 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
   let continueLoop = true
 
   while (continueLoop) {
+    if (suggestions.length === 0) console.log(chalk.dim('  (aucune suggestion — décrivez une tâche ou quittez)'))
     // Afficher les suggestions
     const options = [
       ...suggestions.map((s, i) => {
@@ -251,6 +293,12 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
     console.log(chalk.dim('  ' + '─'.repeat(55)))
     console.log()
 
+    await recordHistory(cwd, {
+      agentId,
+      task,
+      phase: installedAgents.find(a => a.id === agentId)?.phase ?? 'T',
+    })
+
     // Fichiers détectés
     const files = detectFilesInOutput(result.content)
     if (files.length > 0) {
@@ -259,6 +307,12 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
         console.log(`    ${chalk.cyan(f.filename)}`)
       }
       console.log()
+      const existing = files.filter(f => fs.existsSync(path.join(cwd, f.filename)))
+      if (existing.length > 0) {
+        console.log(chalk.yellow(`  ${existing.length} fichier(s) existant(s) seront remplacés (ancienne version sauvegardée dans .kuate/backups) :`))
+        for (const f of existing) console.log(chalk.dim(`    ${f.filename}`))
+        console.log()
+      }
       const saveFiles = await p.confirm({
         message: `Sauvegarder ${files.length > 1 ? 'tous les fichiers' : 'ce fichier'} dans le projet ?`,
         initialValue: true,
@@ -266,6 +320,7 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
       if (!p.isCancel(saveFiles) && saveFiles) {
         for (const f of files) {
           const filePath = path.join(cwd, f.filename)
+          await backupFile(cwd, f.filename)
           await fs.ensureDir(path.dirname(filePath))
           await fs.writeFile(filePath, f.content, 'utf-8')
           console.log(`    ${chalk.green('✓')} ${f.filename}`)
@@ -301,19 +356,24 @@ export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Pr
     } else if (next === 'suggest') {
       // Régénérer avec mémoire mise à jour
       const newMemory = await loadRecentMemory(cwd)
+      const cycleNow = await loadCycleContext(cwd)
+      console.log()
+      console.log('  ' + renderTracker(cycleNow.status))
       const reSpin = p.spinner()
       reSpin.start('Nouvelles suggestions...')
       try {
-        suggestions = await generateNextSuggestions(
+        suggestions = keepRelevant(await generateNextSuggestions(
           projectContext,
           agentInputs,
           newMemory,
           aiConfig,
           config.lang,
-        )
+          cycleNow.extra,
+        ))
         reSpin.stop(chalk.green(`${suggestions.length} nouvelles suggestions`))
       } catch {
-        reSpin.stop(chalk.yellow('Suggestions non régénérées — conservation des précédentes'))
+        suggestions = suggestions.length > 0 ? suggestions : fallbackSuggestions(cycleNow.status, agentInputs)
+        reSpin.stop(chalk.yellow('Suggestions IA non régénérées — conservation des précédentes ou de secours'))
       }
       console.log()
     }
