@@ -744,7 +744,7 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
 // ── Relecture d'un document de spec par un agent ─────────────────────────────
 
 export async function reviewSpecDocument(
-  input: { phase: SpecPhase; reviewerPrompt: string; doc: string },
+  input: { phase: SpecPhase | 'pack'; reviewerPrompt: string; doc: string },
   aiConfig: AiConfig,
 ): Promise<SpecReviewIssue[]> {
   const apiKey = aiConfig.provider === 'anthropic'

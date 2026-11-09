@@ -99,10 +99,13 @@ ${currentDoc}
 Sortie : le document complet révisé, dans un bloc de code dont la première ligne est le chemin du fichier en commentaire.`
 }
 
-export function buildSpecReviewPrompt(phase: SpecPhase, reviewerPrompt: string, doc: string): string {
+export function buildSpecReviewPrompt(phase: SpecPhase | 'pack', reviewerPrompt: string, doc: string): string {
+  const scope = phase === 'pack'
+    ? "du paquet de specs complet (constitution, specs, backlog, architecture, modèle de données, contrats). Un développeur extérieur doit pouvoir coder tout le projet à partir de ce paquet sans poser de question."
+    : `de la phase ${phase} d'un paquet de specs. Un développeur extérieur doit pouvoir coder à partir de ce document sans poser de question.`
   return `${reviewerPrompt}
 
-Tu relis un document de la phase ${phase} d'un paquet de specs. Un développeur extérieur doit pouvoir coder à partir de ce document sans poser de question.
+Tu relis un document ${scope}
 Relève les trous, ambiguïtés, contradictions et éléments non testables. Ne réécris rien.
 
 ## Document

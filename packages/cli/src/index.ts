@@ -13,7 +13,14 @@ import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
 import { cycleCommand } from './commands/cycle.js'
-import { specAnalyzeCommand, specStoriesCommand, specExportCommand } from './commands/spec.js'
+import {
+  specAnalyzeCommand,
+  specStoriesCommand,
+  specExportCommand,
+  specRunCommand,
+  specClarifyCommand,
+  specConstitutionCommand,
+} from './commands/spec.js'
 import { EXPORT_FILES } from '@methode-kuate/core'
 import type { ExportTarget } from '@methode-kuate/core'
 import { addAiOptions, aiOptsOf } from './utils/ai-select.js'
@@ -184,10 +191,31 @@ const specCmd = program
   .command('spec')
   .description('Spécification en phases : paquet de specs, porte de complétude, passation à un LLM de code')
 
+addAiOptions(specCmd
+  .command('run', { isDefault: true })
+  .description('Exécute la boucle (rédiger, relire, réviser, clarifier, porte) pour la prochaine phase K/U/A incomplète')
+  .option('--phase <phase>', 'Forcer une phase (K | U | A)'))
+  .action((opts: AiSelectOptions & { phase?: string }) =>
+    specRunCommand(cwd, { ...aiOptsOf(opts), phase: opts.phase })
+  )
+
+addAiOptions(specCmd
+  .command('constitution')
+  .description('Crée ou met à jour docs/constitution.md (principes, stack, conventions)'))
+  .action((opts: AiSelectOptions) => specConstitutionCommand(cwd, aiOptsOf(opts)))
+
 specCmd
+  .command('clarify')
+  .description('Pose les questions ouvertes ([NEEDS CLARIFICATION]) et enregistre les réponses')
+  .action(() => specClarifyCommand(cwd))
+
+addAiOptions(specCmd
   .command('analyze')
   .description('Porte de complétude : vérifie les specs (ambiguïtés, couverture, cohérence) et écrit docs/analysis.md')
-  .action(() => specAnalyzeCommand(cwd))
+  .option('--ai', 'Ajoute une relecture IA du paquet complet'))
+  .action((opts: AiSelectOptions & { ai?: boolean }) =>
+    specAnalyzeCommand(cwd, { ...aiOptsOf(opts), ai: opts.ai })
+  )
 
 specCmd
   .command('stories')
