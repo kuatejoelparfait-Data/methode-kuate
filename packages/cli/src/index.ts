@@ -13,6 +13,9 @@ import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { nextCommand } from './commands/next.js'
 import { cycleCommand } from './commands/cycle.js'
+import { specAnalyzeCommand, specStoriesCommand, specExportCommand } from './commands/spec.js'
+import { EXPORT_FILES } from '@methode-kuate/core'
+import type { ExportTarget } from '@methode-kuate/core'
 import { addAiOptions, aiOptsOf } from './utils/ai-select.js'
 import type { AiSelectOptions } from './utils/ai-select.js'
 import { projetCommand } from './commands/projet.js'
@@ -175,6 +178,33 @@ addAiOptions(program
       process.exit(1)
     }
     projetCommand(cwd, from as 'K' | 'U' | 'A' | 'T' | 'E' | undefined, aiOptsOf(opts))
+  })
+
+const specCmd = program
+  .command('spec')
+  .description('Spécification en phases : paquet de specs, porte de complétude, passation à un LLM de code')
+
+specCmd
+  .command('analyze')
+  .description('Porte de complétude : vérifie les specs (ambiguïtés, couverture, cohérence) et écrit docs/analysis.md')
+  .action(() => specAnalyzeCommand(cwd))
+
+specCmd
+  .command('stories')
+  .description('Génère un fichier de tâche autoportant par tâche du backlog (docs/stories/)')
+  .action(() => specStoriesCommand(cwd))
+
+specCmd
+  .command('export')
+  .description("Passation : écrit docs/IMPLEMENT.md et le fichier d'instructions de l'outil de code")
+  .requiredOption('--target <cible>', Object.keys(EXPORT_FILES).join(' | '))
+  .option('--force', "Exporter même si la porte de complétude n'est pas passée")
+  .action((opts: { target: string; force?: boolean }) => {
+    if (!Object.keys(EXPORT_FILES).includes(opts.target)) {
+      console.error(`Cible inconnue "${opts.target}". Valeurs possibles : ${Object.keys(EXPORT_FILES).join(', ')}.`)
+      process.exit(1)
+    }
+    return specExportCommand(cwd, { target: opts.target as ExportTarget, force: opts.force })
   })
 
 program.parse(process.argv)
