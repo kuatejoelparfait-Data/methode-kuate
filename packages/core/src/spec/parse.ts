@@ -81,3 +81,27 @@ export function parseSpecs(files: SpecFiles): SpecModel {
     },
   }
 }
+
+/** Contenu d'une section `## Titre` jusqu'à la section `## ` suivante (insensible à la casse). */
+export function extractSection(text: string | undefined, heading: string): string {
+  const lines = stripCodeFences(text ?? '').split('\n')
+  const want = heading.trim().toLowerCase()
+  const start = lines.findIndex(l => /^##\s+(?!#)/.test(l) && l.replace(/^##\s+/, '').trim().toLowerCase() === want)
+  if (start === -1) return ''
+  let end = lines.findIndex((l, i) => i > start && /^##\s+(?!#)/.test(l))
+  if (end === -1) end = lines.length
+  return lines.slice(start + 1, end).join('\n').trim()
+}
+
+/** Phrase(s) de présentation d'une story : lignes entre son titre et sa première puce ou son prochain titre. */
+export function storyIntro(specs: string | undefined, storyId: string): string {
+  const lines = stripCodeFences(specs ?? '').split('\n')
+  const start = lines.findIndex(l => new RegExp('^###\\s+' + storyId + '\\b', 'i').test(l))
+  if (start === -1) return ''
+  const body: string[] = []
+  for (const l of lines.slice(start + 1)) {
+    if (/^#{1,6}\s/.test(l) || /^\s*[-*]\s/.test(l)) break
+    body.push(l)
+  }
+  return body.join('\n').trim()
+}
