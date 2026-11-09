@@ -5,7 +5,7 @@ import {
   phaseFormatContract,
   buildAuthorTask,
   buildRevisionTask,
-  buildReviewPrompt,
+  buildSpecReviewPrompt,
 } from './format.js'
 import { findMarkers, applyClarification, appendClarification } from './clarify.js'
 import { filterDocFiles } from './safe-paths.js'
@@ -51,7 +51,7 @@ describe('contrats de format et prompts', () => {
   })
 
   it('prompt de relecture : réponse JSON attendue', () => {
-    const p = buildReviewPrompt('A', 'Tu es expert sécurité', '# Architecture')
+    const p = buildSpecReviewPrompt('A', 'Tu es expert sécurité', '# Architecture')
     expect(p).toContain('Tu es expert sécurité')
     expect(p).toContain('"issues"')
   })

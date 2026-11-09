@@ -99,7 +99,7 @@ ${currentDoc}
 Sortie : le document complet révisé, dans un bloc de code dont la première ligne est le chemin du fichier en commentaire.`
 }
 
-export function buildReviewPrompt(phase: SpecPhase, reviewerPrompt: string, doc: string): string {
+export function buildSpecReviewPrompt(phase: SpecPhase, reviewerPrompt: string, doc: string): string {
   return `${reviewerPrompt}
 
 Tu relis un document de la phase ${phase} d'un paquet de specs. Un développeur extérieur doit pouvoir coder à partir de ce document sans poser de question.
@@ -115,4 +115,24 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
     { "severity": "blocking|major|minor", "problem": "problème précis", "suggestion": "correction concrète" }
   ]
 }`
+}
+
+const SEVERITIES = new Set(['blocking', 'major', 'minor'])
+
+/** Valide la réponse JSON d'un relecteur ; tout ce qui n'a pas la forme attendue est écarté. */
+export function parseReviewIssues(raw: unknown): SpecReviewIssue[] {
+  const list = (raw as { issues?: unknown } | null)?.issues
+  if (!Array.isArray(list)) return []
+  const out: SpecReviewIssue[] = []
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue
+    const { severity, problem, suggestion } = item as Record<string, unknown>
+    if (typeof problem !== 'string' || !problem.trim()) continue
+    out.push({
+      severity: typeof severity === 'string' && SEVERITIES.has(severity) ? (severity as SpecReviewIssue['severity']) : 'minor',
+      problem: problem.trim(),
+      suggestion: typeof suggestion === 'string' ? suggestion.trim() : '',
+    })
+  }
+  return out
 }

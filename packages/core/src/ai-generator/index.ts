@@ -1,6 +1,9 @@
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'fs-extra'
+import { buildSpecReviewPrompt, parseReviewIssues } from '../spec/format.js'
+import type { SpecReviewIssue } from '../spec/format.js'
+import type { SpecPhase } from '../spec/types.js'
 
 export type AiProvider = 'anthropic' | 'openai'
 
@@ -736,6 +739,24 @@ Réponds UNIQUEMENT avec ce JSON valide (sans markdown fence) :
     issues: Array.isArray(r.issues) ? r.issues : [],
     recommendations: Array.isArray(r.recommendations) ? r.recommendations : [],
   }
+}
+
+// ── Relecture d'un document de spec par un agent ─────────────────────────────
+
+export async function reviewSpecDocument(
+  input: { phase: SpecPhase; reviewerPrompt: string; doc: string },
+  aiConfig: AiConfig,
+): Promise<SpecReviewIssue[]> {
+  const apiKey = aiConfig.provider === 'anthropic'
+    ? (aiConfig.anthropicKey ?? process.env.ANTHROPIC_API_KEY ?? '')
+    : (aiConfig.openaiKey ?? process.env.OPENAI_API_KEY ?? '')
+  if (!apiKey) throw new Error(`Clé API manquante pour ${aiConfig.provider}`)
+
+  const prompt = buildSpecReviewPrompt(input.phase, input.reviewerPrompt, input.doc)
+  const raw = aiConfig.provider === 'anthropic'
+    ? await callJsonAnthropic(prompt, aiConfig.model, apiKey)
+    : await callJsonOpenAI(prompt, aiConfig.model, apiKey)
+  return parseReviewIssues(raw)
 }
 
 export async function analyzeAndSelectAgents(
