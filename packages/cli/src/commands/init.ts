@@ -19,6 +19,8 @@ import {
   generateContextWithAI,
   analyzeAndSelectAgents,
   getEffectiveApiKey,
+  maskKey,
+  validateKeyFormat,
   PROVIDER_LABELS,
   DEFAULT_MODELS,
 } from '@methode-kuate/core'
@@ -531,20 +533,26 @@ and recommended KUATE phase breakdown (K/U/A/T/E). Be concrete and actionable.`
       const existingKey = getEffectiveApiKey(provider as AiProvider)
       let apiKey = existingKey ?? ''
 
-      if (!existingKey) {
+      let replaceKey = !existingKey
+      if (existingKey) {
+        const choice = await p.select<{ value: string; label: string }[], string>({
+          message: `Clé ${keyName} déjà présente (${maskKey(existingKey)})`,
+          options: [
+            { value: 'keep',    label: 'Garder cette clé' },
+            { value: 'replace', label: 'La remplacer' },
+          ],
+        })
+        if (p.isCancel(choice)) { p.cancel('Annulé'); process.exit(0) }
+        replaceKey = choice === 'replace'
+      }
+
+      if (replaceKey) {
         const keyRes = await p.password({
           message: `Clé API ${keyName} ?`,
-          validate: (v) => {
-            if (!v.trim()) return 'La clé ne peut pas être vide'
-            if (provider === 'anthropic' && !v.startsWith('sk-ant-')) return 'Clé Anthropic invalide (doit commencer par sk-ant-)'
-            if (provider === 'openai' && !v.startsWith('sk-')) return 'Clé OpenAI invalide (doit commencer par sk-)'
-            return undefined
-          },
+          validate: (v) => validateKeyFormat(provider as AiProvider, v),
         })
         if (p.isCancel(keyRes)) { p.cancel('Annulé'); process.exit(0) }
         apiKey = String(keyRes).trim()
-      } else {
-        p.log.success(`Clé ${keyName} déjà détectée ✓`)
       }
 
       const models = DEFAULT_MODELS[provider as AiProvider]
