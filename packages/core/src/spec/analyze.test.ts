@@ -35,9 +35,11 @@ describe('analyzeSpecs', () => {
   })
 
   it('G1 : TBD, TODO, À définir et ??? sont des erreurs', () => {
-    for (const word of ['TBD', 'TODO', 'À définir', '???']) {
+    for (const word of ['TBD', 'TODO', '???']) {
       expect(has(broken('architecture', 'Express plutôt', `${word} Express plutôt`), 'G1')).toBe(true)
     }
+    // « à définir » n'est un texte provisoire que comme valeur isolée (« Base : à définir »), pas dans une phrase.
+    expect(has(broken('architecture', '- Express plutôt', '- Base de données : À définir\n- Express plutôt'), 'G1')).toBe(true)
   })
 
   it('G1 : pas de faux positif dans un bloc de code ni dans un mot', () => {

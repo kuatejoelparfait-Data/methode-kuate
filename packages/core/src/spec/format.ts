@@ -65,6 +65,9 @@ const QUALITY_RULES = `Règles de qualité :
 - Interdit : TBD, TODO, « à définir », ???.
 - Toute information manquante ou ambiguë : écris [NEEDS CLARIFICATION: question précise] au lieu d'inventer.`
 
+const FENCE5 = '`'.repeat(5)
+const OUTPUT_RULE = `Sortie : un bloc par fichier, entouré d'une clôture de CINQ backticks (${FENCE5}) pour que les blocs de code internes (arborescences, JSON, SQL, écrits avec trois backticks) ne la ferment pas. La première ligne du bloc est le chemin du fichier en commentaire (ex. // docs/specs.md), suivie du contenu COMPLET du fichier.`
+
 export function buildAuthorTask(
   phase: SpecPhase,
   ctx: { project: string; method: string; description: string; priorDocs: string },
@@ -77,17 +80,25 @@ ${phaseFormatContract(phase)}
 
 ${QUALITY_RULES}
 
-Sortie : un bloc de code par fichier, dont la première ligne est le chemin du fichier en commentaire (ex. // docs/specs.md).`
+${OUTPUT_RULE}`
 }
 
-export function buildRevisionTask(phase: SpecPhase, currentDoc: string, issues: SpecReviewIssue[]): string {
+export function buildRevisionTask(
+  phase: SpecPhase,
+  currentDoc: string,
+  issues: SpecReviewIssue[],
+  clarifications?: string,
+): string {
   const list = issues.map((i, n) => `${n + 1}. [${i.severity}] ${i.problem}\n   Suggestion : ${i.suggestion}`).join('\n')
-  return `Révise le document ci-dessous en intégrant les problèmes relevés par les relecteurs.
-Conserve le format et les identifiants existants.
+  const decided = clarifications && clarifications.trim()
+    ? `\n## Décisions déjà prises (clarifications) — à respecter et à conserver\n\n${clarifications.trim()}\n`
+    : ''
+  return `Révise le document ci-dessous en intégrant les problèmes relevés.
+Conserve le format, les identifiants existants et tout ce qui est correct : ne réécris pas ce qui n'est pas concerné.
 ${QUALITY_RULES}
 
 ${phaseFormatContract(phase)}
-
+${decided}
 ## Problèmes à traiter
 
 ${list || '(aucun)'}
@@ -96,7 +107,7 @@ ${list || '(aucun)'}
 
 ${currentDoc}
 
-Sortie : le document complet révisé, dans un bloc de code dont la première ligne est le chemin du fichier en commentaire.`
+${OUTPUT_RULE}`
 }
 
 export function buildSpecReviewPrompt(phase: SpecPhase | 'pack', reviewerPrompt: string, doc: string): string {

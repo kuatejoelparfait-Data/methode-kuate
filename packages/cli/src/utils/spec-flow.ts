@@ -9,7 +9,7 @@ import {
   issuesForPhase,
   parseSpecs,
   runAgent,
-  detectFilesInOutput,
+  extractDocFiles,
   reviewSpecDocument,
   buildAuthorTask,
   buildRevisionTask,
@@ -69,7 +69,9 @@ function priorDocs(files: SpecFiles, phase: SpecPhase): string {
 
 /** Enregistre les fichiers de la sortie d'un agent : seulement les sorties attendues de la phase, sous docs/. */
 async function savePhaseOutputs(cwd: string, phase: SpecPhase, content: string): Promise<string[]> {
-  const files = filterDocFiles(detectFilesInOutput(content)).filter(f => isPhaseOutput(phase, f.filename))
+  const extracted = extractDocFiles(content)
+  for (const w of extracted.warnings) console.log(chalk.yellow(`    ${w}`))
+  const files = filterDocFiles(extracted.files).filter(f => isPhaseOutput(phase, f.filename))
   const saved: string[] = []
   for (const f of files) {
     const backup = await writeWithBackup(cwd, f.filename, f.content)
@@ -83,6 +85,19 @@ async function readDocs(cwd: string, rels: string[]): Promise<string> {
   const parts: string[] = []
   for (const rel of rels) parts.push(`### ${rel}\n\n${await fs.readFile(path.join(cwd, rel), 'utf-8')}`)
   return parts.join('\n\n')
+}
+
+/** Appelle un agent en affichant sa réponse ; une erreur (clé, réseau) est affichée proprement et renvoie null. */
+async function callAgent(opts: { agentId: string; task: string; cwd: string; aiConfig: AiConfig }): Promise<string | null> {
+  try {
+    const res = await runAgent({ ...opts, onChunk: c => process.stdout.write(c) })
+    console.log()
+    return res.content
+  } catch (err) {
+    console.error(chalk.red(`\n  Erreur IA : ${(err as Error).message}`))
+    process.exitCode = 1
+    return null
+  }
 }
 
 function printIssues(issues: SpecReviewIssue[]): void {
@@ -131,7 +146,14 @@ export async function clarifyAll(cwd: string): Promise<{ resolved: number; remai
       })
       if (p.isCancel(answer)) { cancelled = true; remaining++; continue }
       const value = String(answer).trim()
-      text = applyClarification(text, m.raw, value)
+      const next = applyClarification(text, m.raw, value)
+      if (next === text) {
+        // Le marqueur n'a pas pu être remplacé : on ne le compte pas comme résolu et on ne journalise rien.
+        remaining++
+        p.log.warn(`${rel} ligne ${m.line} : marqueur non appliqué, corrigez-le à la main.`)
+        continue
+      }
+      text = next
       journal = appendClarification(journal, { date, file: rel, question: m.question, answer: value })
       resolved++
     }
@@ -163,21 +185,48 @@ export async function runSpecPhase(cwd: string, phase: SpecPhase, aiConfig: AiCo
   console.log(chalk.bold.hex(PHASE_COLORS[phase] ?? '#FF8C00')(`  Phase ${phase} — spécification`))
   console.log(chalk.dim(`  ${PROVIDER_LABELS[aiConfig.provider]} / ${aiConfig.model}`))
 
-  stepTitle('1/5 Rédaction', lead)
-  console.log()
-  const authored = await runAgent({
-    agentId: lead,
-    task: buildAuthorTask(phase, { project: config.project, method: config.method, description, priorDocs: priorDocs(files, phase) }),
-    cwd,
-    aiConfig,
-    onChunk: c => process.stdout.write(c),
-  })
-  console.log()
-  let saved = await savePhaseOutputs(cwd, phase, authored.content)
-  if (saved.length === 0) {
-    console.error(chalk.red(`  Aucun fichier attendu détecté dans la réponse de ${lead} (sorties : docs/…). Relancez kuate spec.`))
-    process.exitCode = 1
-    return { gatePassed: false }
+  // Documents déjà présents : on propose de les réviser plutôt que de tout régénérer (garde réponses et corrections).
+  const present: string[] = []
+  if (phase === 'K' && files.specs?.trim()) present.push(SPEC_PATHS.specs)
+  if (phase === 'U' && files.backlog?.trim()) present.push(SPEC_PATHS.backlog)
+  if (phase === 'A') {
+    if (files.architecture?.trim()) present.push(SPEC_PATHS.architecture)
+    if (files.dataModel?.trim()) present.push(SPEC_PATHS.dataModel)
+    present.push(...Object.keys(files.contracts))
+  }
+  let revise = present.length > 0
+  if (revise && isInteractive()) {
+    const choice = await p.select<{ value: string; label: string }[], string>({
+      message: `Documents déjà présents (${present.join(', ')})`,
+      options: [
+        { value: 'revise', label: 'Réviser le document actuel (conserve vos réponses et corrections)' },
+        { value: 'regenerate', label: "Régénérer depuis zéro (l'ancienne version est sauvegardée)" },
+      ],
+    })
+    if (p.isCancel(choice)) return { gatePassed: false }
+    revise = choice === 'revise'
+  }
+
+  let saved: string[]
+  if (revise) {
+    stepTitle('1/5 Rédaction', 'ignorée : révision du document existant')
+    saved = present
+  } else {
+    stepTitle('1/5 Rédaction', lead)
+    console.log()
+    const authored = await callAgent({
+      agentId: lead,
+      task: buildAuthorTask(phase, { project: config.project, method: config.method, description, priorDocs: priorDocs(files, phase) }),
+      cwd,
+      aiConfig,
+    })
+    if (authored === null) return { gatePassed: false }
+    saved = await savePhaseOutputs(cwd, phase, authored)
+    if (saved.length === 0) {
+      console.error(chalk.red(`  Aucun fichier attendu détecté dans la réponse de ${lead} (sorties : docs/…). Relancez kuate spec.`))
+      process.exitCode = 1
+      return { gatePassed: false }
+    }
   }
 
   stepTitle('2/5 Relecture', reviewers.join(', '))
@@ -199,19 +248,29 @@ export async function runSpecPhase(cwd: string, phase: SpecPhase, aiConfig: AiCo
     }
   }
 
+  if (revise) {
+    // En révision, les erreurs de la porte sont aussi à traiter (sauf les marqueurs : réservés à la clarification).
+    const gateErrors = issuesForPhase(analyzeSpecs(await readSpecFiles(cwd)), phase)
+      .filter(i => i.severity === 'error' && !i.message.includes('NEEDS CLARIFICATION'))
+    issues.push(...gateErrors.map(i => ({
+      severity: 'blocking' as const,
+      problem: `[${i.rule}] ${i.id ? `${i.id} — ` : ''}${i.message}`,
+      suggestion: 'Corriger pour que la porte de complétude passe.',
+    })))
+  }
+
   if (issues.length > 0) {
     printIssues(issues)
     stepTitle('3/5 Révision', lead)
     console.log()
-    const revised = await runAgent({
+    const revised = await callAgent({
       agentId: lead,
-      task: buildRevisionTask(phase, await readDocs(cwd, saved), issues),
+      task: buildRevisionTask(phase, await readDocs(cwd, saved), issues, (await readSpecFiles(cwd)).clarifications),
       cwd,
       aiConfig,
-      onChunk: c => process.stdout.write(c),
     })
-    console.log()
-    const again = await savePhaseOutputs(cwd, phase, revised.content)
+    if (revised === null) return { gatePassed: false }
+    const again = await savePhaseOutputs(cwd, phase, revised)
     saved = [...new Set([...saved, ...again])]
   } else {
     stepTitle('3/5 Révision', 'aucune remarque : ignorée')
@@ -262,9 +321,11 @@ Sortie : un bloc de code dont la première ligne est // docs/constitution.md`
   console.log()
   console.log(chalk.bold.hex(PHASE_COLORS.K ?? '#FFB300')('  Constitution du projet'))
   console.log()
-  const res = await runAgent({ agentId, task, cwd, aiConfig, onChunk: c => process.stdout.write(c) })
-  console.log()
-  const found = filterDocFiles(detectFilesInOutput(res.content)).find(f => f.filename === SPEC_PATHS.constitution)
+  const answer = await callAgent({ agentId, task, cwd, aiConfig })
+  if (answer === null) return false
+  const extracted = extractDocFiles(answer)
+  for (const w of extracted.warnings) console.log(chalk.yellow(`    ${w}`))
+  const found = filterDocFiles(extracted.files).find(f => f.filename === SPEC_PATHS.constitution)
   if (!found) {
     console.error(chalk.red(`  Aucune ${SPEC_PATHS.constitution} détectée dans la réponse. Relancez kuate spec constitution.`))
     process.exitCode = 1

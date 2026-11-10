@@ -6,7 +6,7 @@ function lf(text: string | undefined): string {
 
 /** Retire les blocs de code ``` (les exemples de format n'ont pas valeur de spec). */
 export function stripCodeFences(text: string): string {
-  return lf(text).replace(/```[\s\S]*?```/g, '')
+  return lf(text).replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '')
 }
 
 /** `us-1` devient `US-001` ; les identifiants de plus de 3 chiffres ne sont jamais tronqués. */
@@ -27,7 +27,7 @@ function parseTasks(backlog: string): SpecTask[] {
     const block = text.slice(start, end).trim()
     const rest = /^\s*(\[p\])?\s*(?:[—–:-]\s*)?(.*)$/i.exec(h[2]) as RegExpExecArray
     const field = (name: string): string => {
-      const m = new RegExp(`^\\s*${name}\\s*:\\s*(.*)$`, 'im').exec(block)
+      const m = new RegExp(`^[ \\t]*${name}[ \\t]*:[ \\t]*(.*)$`, 'im').exec(block)
       return m ? m[1].trim() : ''
     }
     const ids = (value: string, pattern: string): string[] =>
