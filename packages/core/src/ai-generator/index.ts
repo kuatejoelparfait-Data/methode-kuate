@@ -28,40 +28,139 @@ export interface GeneratedContext {
 
 const GLOBAL_CONFIG_PATH = path.join(os.homedir(), '.kuate', 'global.json')
 
+const ENV_KEY_NAMES: Record<AiProvider, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+}
+
+export type KeySource = 'file' | 'env' | 'none'
+
+export function getEnvKeyName(provider: AiProvider): string {
+  return ENV_KEY_NAMES[provider]
+}
+
+// Valeurs réelles de l'environnement, capturées avant toute injection depuis le fichier.
+const ORIGINAL_ENV: Record<AiProvider, string | undefined> = {
+  anthropic: process.env.ANTHROPIC_API_KEY,
+  openai: process.env.OPENAI_API_KEY,
+}
+
+function storedKeyField(provider: AiProvider): 'anthropicKey' | 'openaiKey' {
+  return provider === 'anthropic' ? 'anthropicKey' : 'openaiKey'
+}
+
 export function detectAvailableProvider(): AiProvider | null {
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic'
   if (process.env.OPENAI_API_KEY) return 'openai'
   return null
 }
 
-export async function readGlobalAiConfig(): Promise<AiConfig | null> {
-  if (!fs.existsSync(GLOBAL_CONFIG_PATH)) return null
+/** Lit le fichier global brut, sans effet de bord sur process.env. */
+async function readRawGlobal(): Promise<Partial<AiConfig>> {
+  if (!fs.existsSync(GLOBAL_CONFIG_PATH)) return {}
   try {
-    const raw = await fs.readFile(GLOBAL_CONFIG_PATH, 'utf-8')
-    const parsed = JSON.parse(raw) as Partial<AiConfig>
-    if (!parsed.provider || !parsed.model) return null
-    // Inject stored key into env if not already set
-    if (parsed.anthropicKey && !process.env.ANTHROPIC_API_KEY) {
-      process.env.ANTHROPIC_API_KEY = parsed.anthropicKey
-    }
-    if (parsed.openaiKey && !process.env.OPENAI_API_KEY) {
-      process.env.OPENAI_API_KEY = parsed.openaiKey
-    }
-    return parsed as AiConfig
+    return JSON.parse(await fs.readFile(GLOBAL_CONFIG_PATH, 'utf-8')) as Partial<AiConfig>
   } catch {
-    return null
+    return {}
   }
 }
 
-export function getEffectiveApiKey(provider: AiProvider): string | null {
-  if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY ?? null
-  if (provider === 'openai') return process.env.OPENAI_API_KEY ?? null
-  return null
+async function writeRawGlobal(data: Partial<AiConfig>): Promise<void> {
+  await fs.ensureDir(path.dirname(GLOBAL_CONFIG_PATH))
+  await fs.writeFile(GLOBAL_CONFIG_PATH, JSON.stringify(data, null, 2), 'utf-8')
+  try { await fs.chmod(GLOBAL_CONFIG_PATH, 0o600) } catch { /* Windows : best effort */ }
 }
 
+export async function readGlobalAiConfig(): Promise<AiConfig | null> {
+  const parsed = await readRawGlobal()
+  // La clé enregistrée via kuate config ai est prioritaire sur la variable d'environnement
+  // (sinon une ancienne variable périmée masquerait la clé modifiée).
+  if (parsed.anthropicKey) process.env.ANTHROPIC_API_KEY = parsed.anthropicKey
+  if (parsed.openaiKey) process.env.OPENAI_API_KEY = parsed.openaiKey
+  if (!parsed.provider || !parsed.model) return null
+  return parsed as AiConfig
+}
+
+export function getEffectiveApiKey(provider: AiProvider): string | null {
+  return process.env[ENV_KEY_NAMES[provider]] ?? null
+}
+
+/** Écrit la config en conservant les clés existantes non fournies (jamais d'écrasement silencieux). */
 export async function writeGlobalAiConfig(config: AiConfig): Promise<void> {
-  await fs.ensureDir(path.dirname(GLOBAL_CONFIG_PATH))
-  await fs.writeFile(GLOBAL_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+  const existing = await readRawGlobal()
+  await writeRawGlobal({
+    ...existing,
+    ...config,
+    anthropicKey: config.anthropicKey ?? existing.anthropicKey,
+    openaiKey: config.openaiKey ?? existing.openaiKey,
+  })
+}
+
+/** Ajoute ou remplace la clé d'un provider. Si aucun provider actif n'existe, celui-ci devient actif. */
+export async function setProviderKey(provider: AiProvider, key: string): Promise<void> {
+  const existing = await readRawGlobal()
+  const active = existing.provider && existing.model
+  await writeRawGlobal({
+    ...existing,
+    provider: active ? existing.provider : provider,
+    model: active ? existing.model : DEFAULT_MODELS[provider][0],
+    [storedKeyField(provider)]: key.trim(),
+  })
+  process.env[ENV_KEY_NAMES[provider]] = key.trim()
+}
+
+/** Supprime la clé enregistrée dans le fichier (la variable d'environnement système n'est pas touchée). */
+export async function removeProviderKey(provider: AiProvider): Promise<void> {
+  const existing = await readRawGlobal()
+  delete existing[storedKeyField(provider)]
+  await writeRawGlobal(existing)
+  // On retire la valeur injectée depuis le fichier et on restaure la vraie variable d'environnement.
+  const original = ORIGINAL_ENV[provider]
+  if (original) process.env[ENV_KEY_NAMES[provider]] = original
+  else delete process.env[ENV_KEY_NAMES[provider]]
+}
+
+/** Change provider et modèle actifs sans toucher aux clés. */
+export async function setActiveProvider(provider: AiProvider, model: string): Promise<void> {
+  const existing = await readRawGlobal()
+  await writeRawGlobal({ ...existing, provider, model })
+}
+
+export async function getKeySource(provider: AiProvider): Promise<KeySource> {
+  const raw = await readRawGlobal()
+  if (raw[storedKeyField(provider)]) return 'file'
+  return ORIGINAL_ENV[provider] ? 'env' : 'none'
+}
+
+export function maskKey(key: string): string {
+  if (key.length <= 12) return '****'
+  return `${key.slice(0, 7)}…${key.slice(-4)}`
+}
+
+export function validateKeyFormat(provider: AiProvider, key: string): string | undefined {
+  const k = key.trim()
+  if (!k) return 'La clé ne peut pas être vide'
+  if (provider === 'anthropic' && !k.startsWith('sk-ant-')) return 'Clé Anthropic invalide (doit commencer par sk-ant-)'
+  if (provider === 'openai' && !k.startsWith('sk-')) return 'Clé OpenAI invalide (doit commencer par sk-)'
+  return undefined
+}
+
+/** Teste une clé par un appel réel et minimal. Retourne null si OK, sinon un message d'erreur. */
+export async function testApiKey(provider: AiProvider, key: string): Promise<string | null> {
+  try {
+    const res = provider === 'anthropic'
+      ? await fetch('https://api.anthropic.com/v1/models?limit=1', {
+          headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        })
+      : await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+        })
+    if (res.ok) return null
+    if (res.status === 401 || res.status === 403) return 'Clé refusée par le provider (401/403)'
+    return `Réponse inattendue du provider (${res.status})`
+  } catch (e) {
+    return `Réseau indisponible : ${(e as Error).message}`
+  }
 }
 
 export const DEFAULT_MODELS: Record<AiProvider, string[]> = {
