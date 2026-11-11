@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="KUATE — Knower · Unifier · Architect · Transformer · Evaluator — CLI d'orchestration d'agents IA" width="720">
+</p>
+
 # Methode KUATE
 
 **CLI d'orchestration d'agents IA pour equipes structurees**
