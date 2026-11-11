@@ -7,17 +7,16 @@ import {
   getEffectiveApiKey,
   getKeySource,
   getEnvKeyName,
-  setProviderKey,
   removeProviderKey,
   setActiveProvider,
   maskKey,
-  validateKeyFormat,
   testApiKey,
   DEFAULT_MODELS,
   PROVIDER_LABELS,
 } from '@methode-kuate/core'
 import type { AiProvider } from '@methode-kuate/core'
 import { initI18n, t } from '../i18n/index.js'
+import { promptAndSaveKey } from '../utils/ai-select.js'
 
 export async function configShowCommand(cwd: string): Promise<void> {
   if (!isKuateProject(cwd)) {
@@ -141,29 +140,7 @@ async function switchProvider(): Promise<void> {
 async function editKey(): Promise<void> {
   const prov = await pickProvider('Pour quel provider ?')
   if (!prov) return
-
-  const existing = getEffectiveApiKey(prov)
-  if (existing) p.log.info(`Clé actuelle : ${maskKey(existing)}`)
-
-  const keyRes = await p.password({
-    message: `Nouvelle clé ${getEnvKeyName(prov)} ?`,
-    validate: (v) => validateKeyFormat(prov, v),
-  })
-  if (p.isCancel(keyRes)) return
-  const key = String(keyRes).trim()
-
-  const spinner = p.spinner()
-  spinner.start('Vérification de la clé…')
-  const err = await testApiKey(prov, key)
-  spinner.stop(err ? chalk.yellow(`Non vérifiée : ${err}`) : chalk.green('Clé valide ✓'))
-
-  if (err) {
-    const keep = await p.confirm({ message: 'Enregistrer quand même ?', initialValue: false })
-    if (p.isCancel(keep) || !keep) { p.log.info('Clé non enregistrée.'); return }
-  }
-
-  await setProviderKey(prov, key)
-  p.log.success(chalk.green(`Clé ${PROVIDER_LABELS[prov]} enregistrée : ${maskKey(key)}`))
+  await promptAndSaveKey(prov)
 }
 
 async function testKey(): Promise<void> {

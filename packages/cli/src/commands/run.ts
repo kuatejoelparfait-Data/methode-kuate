@@ -10,8 +10,10 @@ import {
   detectFilesInOutput,
 } from '@methode-kuate/core'
 import { initI18n } from '../i18n/index.js'
+import { resolveAiConfig } from '../utils/ai-select.js'
+import type { AiSelectOptions } from '../utils/ai-select.js'
 
-export async function runCommand(cwd: string, agentId: string, task: string): Promise<void> {
+export async function runCommand(cwd: string, agentId: string, task: string, aiOpts: AiSelectOptions = {}): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouvé. Lancez kuate init d'abord."))
     process.exit(1)
@@ -20,11 +22,7 @@ export async function runCommand(cwd: string, agentId: string, task: string): Pr
   const config = await readConfig(cwd)
   initI18n(config.lang)
 
-  const aiConfig = await readGlobalAiConfig()
-  if (!aiConfig) {
-    console.error(chalk.red('IA non configurée. Lancez kuate config ai.'))
-    process.exit(1)
-  }
+  const aiConfig = await resolveAiConfig(aiOpts)
 
   console.log()
   console.log(chalk.bold.hex('#FF8C00')(`  ◆ Agent : ${agentId}`))

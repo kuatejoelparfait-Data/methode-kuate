@@ -17,6 +17,8 @@ import { AGENTS_CONTENT } from '@methode-kuate/agents-content'
 import { AGENTS_EDUCATION } from '@methode-kuate/agents-education'
 import type { AgentDefinition } from '@methode-kuate/core'
 import { initI18n } from '../i18n/index.js'
+import { resolveAiConfig } from '../utils/ai-select.js'
+import type { AiSelectOptions } from '../utils/ai-select.js'
 
 const PHASE_COLORS: Record<string, string> = {
   K: '#FFB300',
@@ -72,7 +74,7 @@ async function saveMemoryEntry(cwd: string, agentId: string, note: string): Prom
   await fs.appendFile(memoryPath, `\n## ${date} — ${agentId}\n\n${note.trim()}\n`)
 }
 
-export async function nextCommand(cwd: string): Promise<void> {
+export async function nextCommand(cwd: string, aiOpts: AiSelectOptions = {}): Promise<void> {
   if (!isKuateProject(cwd)) {
     console.error(chalk.red("Aucun projet KUATE trouvé. Lancez kuate init d'abord."))
     process.exit(1)
@@ -81,11 +83,7 @@ export async function nextCommand(cwd: string): Promise<void> {
   const config = await readConfig(cwd)
   initI18n(config.lang)
 
-  const aiConfig = await readGlobalAiConfig()
-  if (!aiConfig) {
-    console.error(chalk.red('IA non configurée. Lancez kuate config ai.'))
-    process.exit(1)
-  }
+  const aiConfig = await resolveAiConfig(aiOpts)
 
   // Agents installés dans ce projet
   const allAgents: AgentDefinition[] = [
