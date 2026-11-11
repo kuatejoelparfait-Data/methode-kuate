@@ -138,6 +138,59 @@ L'état est conservé dans `.kuate/cycle.json`. `kuate projet` ignore les phases
 
 ---
 
+### `kuate spec`
+
+Outil de **spécification en phases** (inspiré de BMAD et de GitHub Spec Kit). Objectif : sortir des phases K, U, A avec un paquet de specs **complet et vérifiable**, qu'un LLM de code (Claude Code, Copilot, Cursor) ou la phase T peut implémenter sans poser de question.
+
+```bash
+kuate spec                     # boucle pour la prochaine phase K/U/A incomplète
+kuate spec constitution        # principes, stack, conventions (docs/constitution.md)
+kuate spec clarify             # répond aux [NEEDS CLARIFICATION] ouverts
+kuate spec analyze [--ai]      # porte de complétude -> docs/analysis.md (code de sortie 1 s'il reste des erreurs)
+kuate spec stories             # un fichier de tâche autoportant par tâche (docs/stories/)
+kuate spec export --target claude|copilot|cursor|agents   # passation
+```
+
+**Boucle d'une phase** : rédiger (agent principal) → relire (agents relecteurs) → réviser → clarifier (questions à l'humain) → porte.
+
+| Phase | Agent principal | Relecteurs | Documents |
+|---|---|---|---|
+| K | `business-analyst` | `qa-strategist`, `expert-securite` | `docs/constitution.md`, `docs/specs.md` |
+| U | `chef-projet` | `tech-lead` | `docs/backlog.md` |
+| A | `architecte-solution` | `expert-securite`, `expert-devops`, `tech-lead` | `docs/architecture.md`, `docs/data-model.md`, `docs/contracts/*.md` |
+
+**Formats analysables** (identifiants stables) :
+
+```
+### US-001 — Titre                                  (docs/specs.md)
+- AC-001 (US-001) : Étant donné …, quand …, alors …
+
+### T-001 [P] — Titre                               (docs/backlog.md)
+Covers: US-001, AC-001
+Depends: T-000
+Files: src/auth/login.ts, src/auth/login.test.ts
+Done when: critère vérifiable
+```
+
+`[NEEDS CLARIFICATION: question]` marque une ambiguïté dans n'importe quel document.
+
+**Porte de complétude** (déterministe, sans IA) :
+
+| Règle | Contrôle |
+|---|---|
+| G0 | `specs.md`, `backlog.md`, `architecture.md` présents et non vides |
+| G1 | plus aucun `[NEEDS CLARIFICATION]`, `TBD`, `TODO`, « à définir », `???` (hors blocs de code) |
+| G2 | au moins une story, chacune avec au moins un critère `AC-` |
+| G3 / G4 | chaque story et chaque critère couverts par au moins une tâche |
+| G5 | au moins une tâche ; chacune avec `Covers`, `Files`, `Done when` et des références existantes |
+| G6 | dépendances existantes, sans cycle |
+| G7 | sections d'architecture obligatoires ; `data-model.md` et `contracts/` si la constitution les déclare |
+| G8 | aucun identifiant en double |
+
+`kuate cycle` affiche l'état de porte de chaque phase. `kuate spec export` refuse de s'exécuter tant que la porte n'est pas passée (sauf `--force`) et sauvegarde tout fichier remplacé dans `.kuate/backups/`.
+
+---
+
 ### `kuate init`
 
 Lance le wizard interactif (6 etapes) pour initialiser la Methode KUATE dans le projet courant.

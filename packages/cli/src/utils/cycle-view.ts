@@ -50,7 +50,12 @@ export function renderCycleTable(status: CycleStatus): string {
     const badge = chalk.bold.hex(color)(ps.phase)
     const name = ps.name.padEnd(12)
     const where = ps.artifact ? chalk.dim(`${ps.artifact}  ${ago(ps.modifiedAt)}`) : ''
-    lines.push(`  ${badge}  ${name} ${shortStatus(ps).padEnd(40)} ${where}`)
+    const gate = ps.gate
+      ? ps.gate.errors === 0
+        ? chalk.green('  porte : complète')
+        : chalk.yellow(`  porte : ${ps.gate.errors} erreur(s)`)
+      : ''
+    lines.push(`  ${badge}  ${name} ${shortStatus(ps).padEnd(40)} ${where}${gate}`)
   }
   if (status.issues.length > 0) {
     lines.push('', chalk.yellow('  Incohérences :'))
