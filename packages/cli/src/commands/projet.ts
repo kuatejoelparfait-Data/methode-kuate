@@ -20,6 +20,9 @@ import {
   isKuateProject,
   readConfig,
   readGlobalAiConfig,
+  readCycle,
+  computeCycleStatus,
+  recordHistory,
   runAgent,
   detectFilesInOutput,
   planProjectTasks,
@@ -819,21 +822,20 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOp
     }
   }
 
-  // Vérifier si le code source existe (Phase T réellement terminée)
-  const hasSrcDir = ['src', 'app', 'lib', 'server', 'api'].some(d =>
-    fs.existsSync(path.join(cwd, d))
-  )
+  // État du cycle (.kuate/cycle.json) : phases sautées / validées / périmées
+  const cycleState = await readCycle(cwd)
+  const cycleStatus = await computeCycleStatus(cwd, cycleState)
+  for (const ps of cycleStatus.phases) {
+    if (ps.status === 'validated') done.add(ps.phase)
+  }
+  if (cycleStatus.issues.length > 0) {
+    console.log(chalk.yellow('  Cycle : ') + chalk.dim('kuate cycle pour le détail'))
+    for (const issue of cycleStatus.issues.slice(0, 3)) console.log(chalk.dim(`    · ${issue}`))
+    console.log()
+  }
 
-  // Déterminer phase de départ
-  const startPhase = fromPhase ?? ((): PipelinePhase => {
-    if (!done.has('K')) return 'K'
-    if (!done.has('U')) return 'U'
-    if (!done.has('A')) return 'A'
-    // Phase T non faite OU docs existent mais pas de code
-    if (!done.has('T') || !hasSrcDir) return 'T'
-    if (!done.has('E')) return 'E'
-    return 'E'
-  })()
+  // Déterminer phase de départ : première phase à faire ou périmée (sautées/validées ignorées)
+  const startPhase = fromPhase ?? (cycleStatus.next ?? 'E')
 
   const phaseOrder: PipelinePhase[] = ['K', 'U', 'A', 'T', 'E']
   const startIdx = phaseOrder.indexOf(startPhase)
@@ -842,6 +844,13 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOp
 
   for (let i = startIdx; i < phaseOrder.length; i++) {
     const currentPhase = phaseOrder[i]
+
+    // Phase sautée ou validée via kuate cycle : on la passe (sauf si demandée explicitement)
+    const override = cycleState.overrides[currentPhase]
+    if (override && i > startIdx) {
+      console.log(chalk.dim(`  Phase ${currentPhase} ${override === 'skipped' ? 'sautée' : 'validée'} (kuate cycle) — ignorée.`))
+      continue
+    }
 
     // Afficher le tracker
     console.log()
@@ -864,6 +873,7 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOp
       }
 
       done.add('T')
+      await recordHistory(cwd, { agentId: 'dev-senior', task: 'Phase T — génération du code', phase: 'T' })
 
       // Proposer de continuer vers Phase E
       const continueToE = await p.select<{ value: string; label: string; hint?: string }[], string>({
@@ -929,6 +939,7 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOp
     const ok = await runPhase(cwd, phaseDef, config, aiConfig, doneDocs, projectDescription)
     if (ok) {
       done.add(currentPhase)
+      await recordHistory(cwd, { agentId: phaseDef.agentId, task: `Phase ${currentPhase} — ${phaseDef.output}`, phase: currentPhase })
       console.log()
       console.log(chalk.dim('  ' + '─'.repeat(55)))
     }
@@ -970,7 +981,7 @@ export async function projetCommand(cwd: string, fromPhase?: PipelinePhase, aiOp
 
     if (!p.isCancel(launchDev) && launchDev === 'dev') {
       const { devCommand } = await import('./dev.js')
-      await devCommand(cwd)
+      await devCommand(cwd, { provider: aiConfig.provider, model: aiConfig.model })
     }
   }
   console.log()
